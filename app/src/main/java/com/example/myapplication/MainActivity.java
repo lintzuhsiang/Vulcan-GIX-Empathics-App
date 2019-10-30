@@ -97,6 +97,9 @@ public class MainActivity extends ActionMenuActivity {
     protected long cameraCaptureStartTime = 0;
     private Handler timerHandler = new Handler();
 
+    ImageView imageView = findViewById(R.id.imageView2);
+
+
     Context mContext;
     //    Bitmap bitmap_;
     String FACE_SUBSCRIPTION_KEY = "bc027dc227484433a77d7b613807d230";
@@ -115,6 +118,7 @@ public class MainActivity extends ActionMenuActivity {
 
         takePictureButton = (Button) findViewById(R.id.btn_takepicture);
         assert takePictureButton != null;
+        imageView.setVisibility(View.INVISIBLE);
         takePictureButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -470,8 +474,10 @@ public class MainActivity extends ActionMenuActivity {
 //                            showError(exceptionMessage);
                         }
                         if (result == null) return;
-                        showFaceResult(result);
-//                        ImageView imageView = findViewById(R.id.imageView1);
+//                        showFaceResult(result);
+//                        ImageView imageView = findViewById(R.id.imageView2);
+//                        int imageResource=0;
+                        imageView.setImageResource(showFaceResult(result));//,imageResource));
 //                        imageView.setImageBitmap(
 //                                drawFaceRectanglesOnBitmap(imageBitmap, result));
 //                        imageBitmap.recycle();
@@ -482,8 +488,9 @@ public class MainActivity extends ActionMenuActivity {
     }
 
 
-    private void showFaceResult(Face[] faces) {
+    private int showFaceResult(Face[] faces) {
         Log.d("showFaceResult", "Inside showFaceResult function");
+        int imageResource = getResources().getIdentifier("@drawable/happy","drawable",getPackageName());
         Canvas canvas = new Canvas();
         Paint paint = new Paint();
         paint.setAntiAlias(true);
@@ -524,7 +531,7 @@ public class MainActivity extends ActionMenuActivity {
             canvas.drawText("no face detected",75,385,paint);
             canvas.translate(0,200);
         }
-//        return emoArrVal;
+        return imageResource;
     }
 
     private void showError(String message) {

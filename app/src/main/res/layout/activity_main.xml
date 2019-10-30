@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout
+<RelativeLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
@@ -12,10 +12,11 @@
     <TextureView
         android:id="@+id/textureView"
         android:layout_width="match_parent"
-        android:layout_height="400dp"
-        android:layout_above="@+id/btn_takepicture"
+        android:layout_height="250dp"
         android:layout_alignParentTop="true"
+        android:layout_above="@+id/btn_takepicture"
         />
+
 
     <Button
         android:id="@+id/btn_takepicture"
@@ -26,12 +27,18 @@
         android:layout_marginTop="16dp"
         android:layout_marginBottom="16dp"
         android:text="@string/take_picture" />
+<!--    <ImageView-->
+<!--        android:layout_width="250dp"-->
+<!--        android:layout_height="250dp"-->
+<!--        android:src="@mipmap/ic_launcher"-->
+<!--        android:layout_gravity="center_horizontal"-->
+<!--        android:id="@+id/imageView1"-->
+<!--        />-->
     <ImageView
-        android:layout_width="250dp"
-        android:layout_height="250dp"
-        android:src="@mipmap/ic_launcher"
-        android:layout_gravity="center_horizontal"
-        android:id="@+id/imageView1"
-        />
+        android:id="@+id/imageView2"
+        android:layout_width="50dp"
+        android:layout_height="50dp"
+        android:layout_gravity="end|right|top"
+        android:src="@drawable/happy" />
 
-</LinearLayout>
+</RelativeLayout>
