@@ -12,7 +12,7 @@
     <TextureView
         android:id="@+id/textureView"
         android:layout_width="match_parent"
-        android:layout_height="250dp"
+        android:layout_height="480dp"
         android:layout_alignParentTop="true"
         android:layout_above="@+id/btn_takepicture"
         />
@@ -35,10 +35,33 @@
 <!--        android:id="@+id/imageView1"-->
 <!--        />-->
     <ImageView
-        android:id="@+id/imageView2"
+        android:id="@+id/imageView"
         android:layout_width="50dp"
         android:layout_height="50dp"
         android:layout_gravity="end|right|top"
-        android:src="@drawable/happy" />
+        android:visibility="gone" />
+    <ImageView
+        android:id="@+id/imageHappy"
+        android:layout_width="50dp"
+        android:layout_height="50dp"
+        android:layout_gravity="end|right|top"
+        android:src="@drawable/happy"
+        android:visibility="gone" />
+
+    <ImageView
+        android:id="@+id/imageNeutral"
+        android:layout_width="50dp"
+        android:layout_height="50dp"
+        android:layout_gravity="end|right|top"
+        android:src="@drawable/neutral"
+        android:visibility="gone" />
+
+    <ImageView
+        android:id="@+id/imageSad"
+        android:layout_width="50dp"
+        android:layout_height="50dp"
+        android:layout_gravity="end|right|top"
+        android:src="@drawable/sad"
+        android:visibility="gone" />
 
 </RelativeLayout>
