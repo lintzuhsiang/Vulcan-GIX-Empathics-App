@@ -1,7 +1,3 @@
-
-
-
-
 package com.example.myapplication;
 
 import androidx.annotation.NonNull;
@@ -20,7 +16,9 @@ import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.ImageFormat;
+import android.graphics.Matrix;
 import android.graphics.Paint;
+import android.graphics.Rect;
 import android.graphics.SurfaceTexture;
 import android.graphics.drawable.BitmapDrawable;
 import android.hardware.camera2.params.StreamConfigurationMap;
@@ -60,21 +58,27 @@ import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.FileReader;
+import java.io.OutputStreamWriter;
+
 
 import com.vuzix.hud.actionmenu.ActionMenuActivity;
 
 import com.microsoft.projectoxford.face.*;
 import com.microsoft.projectoxford.face.contract.*;
-//Queue<byte[]> imageQueue = new LinkedList<>();
 
-//public class MainActivity<textureView> extends AppCompatActivity {
 public class MainActivity extends ActionMenuActivity {
 
-//    private static final String TAG = "AndroidCameraApi";
     private static final String TAG = "MainActivity";
 
+    //layout
     private Button takePictureButton;
     private TextureView textureView;
+    private ImageView imageView;
+
     private static final SparseIntArray ORIENTATIONS = new SparseIntArray();
     static {
         ORIENTATIONS.append(Surface.ROTATION_0, 90);
@@ -82,33 +86,35 @@ public class MainActivity extends ActionMenuActivity {
         ORIENTATIONS.append(Surface.ROTATION_180, 270);
         ORIENTATIONS.append(Surface.ROTATION_270, 180);
     }
+
+    //camera
     private String cameraId;
     protected CameraDevice cameraDevice;
     protected CameraCaptureSession cameraCaptureSessions;
-    protected CaptureRequest captureRequest;
     protected CaptureRequest.Builder captureRequestBuilder;
     private Size imageDimension;
-    private ImageReader imageReader;
-    private File file;
     private static final int REQUEST_CAMERA_PERMISSION = 200;
-    private boolean mFlashSupported;
+
+    //thread
     private Handler mBackgroundHandler;
     private HandlerThread mBackgroundThread;
-    protected long cameraCaptureStartTime = 0;
     private Handler timerHandler = new Handler();
+    private Runnable runnableCode;
+    private int btn_flag = 0;
 
-    ImageView imageView = findViewById(R.id.imageView2);
 
+    //timestamp
+    protected long cameraCaptureStartTime = 0;
+    protected long faceAPIStartTime = 0;
 
-    Context mContext;
-    //    Bitmap bitmap_;
+    //face API
     String FACE_SUBSCRIPTION_KEY = "bc027dc227484433a77d7b613807d230";
     String FACE_ENDPOINT = "https://empthetic.cognitiveservices.azure.com/face/v1.0";
     private final String apiEndpoint =  FACE_ENDPOINT;
     private final String subscriptionKey = FACE_SUBSCRIPTION_KEY;
     private final FaceServiceClient faceServiceClient = new FaceServiceRestClient(apiEndpoint, subscriptionKey);
-    private ProgressDialog detectionProgressDialog;
     @Override
+
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
@@ -118,23 +124,42 @@ public class MainActivity extends ActionMenuActivity {
 
         takePictureButton = (Button) findViewById(R.id.btn_takepicture);
         assert takePictureButton != null;
-        imageView.setVisibility(View.INVISIBLE);
+
+        imageView = (ImageView) findViewById(R.id.imageView);
+
         takePictureButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                Runnable runnableCode = new Runnable() {
-                    @Override
-                    public void run() {
-                        Log.d("Handlers", "Called on main thread");
-                        takePicture();
-                        timerHandler.postDelayed(this, 2000);
+                btn_flag ^= 1;
+                if(btn_flag==1){
+                    Toast.makeText(MainActivity.this, "Start Taking Photos", Toast.LENGTH_SHORT).show();
+
+                    runnableCode = new Runnable() {
+                        @Override
+                        public void run() {
+                            Log.d("Handlers", "Called on main thread");
+                            cameraCaptureStartTime = System.currentTimeMillis();
+                            takePicture();
+
+                            timerHandler.postDelayed(this, 2000);
+                        }
+                    };
+                        timerHandler.post(runnableCode);
+//                    }
+                }else{
+                    Toast.makeText(MainActivity.this, "Stop Taking Photos", Toast.LENGTH_SHORT).show();
+                    if (runnableCode != null) {
+                        timerHandler.removeCallbacks(runnableCode);
+                        Log.d("Handlers", "Stop runnable on main thread");
                     }
-                };
-                timerHandler.post(runnableCode);
-//
+                }
             }
         });
+
     }
+
+
+
     TextureView.SurfaceTextureListener textureListener = new TextureView.SurfaceTextureListener() {
         @Override
         public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
@@ -176,7 +201,7 @@ public class MainActivity extends ActionMenuActivity {
         @Override
         public void onCaptureCompleted(CameraCaptureSession session, CaptureRequest request, TotalCaptureResult result) {
             super.onCaptureCompleted(session, request, result);
-            Toast.makeText(MainActivity.this, "Saved:" + file, Toast.LENGTH_SHORT).show();
+//            Toast.makeText(MainActivity.this, "Saved:" + file, Toast.LENGTH_SHORT).show();
             createCameraPreview();
         }
     };
@@ -205,6 +230,8 @@ public class MainActivity extends ActionMenuActivity {
         CameraManager manager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
         try {
             CameraCharacteristics characteristics = manager.getCameraCharacteristics(cameraDevice.getId());
+            float maxzoom = (characteristics.get(CameraCharacteristics.SCALER_AVAILABLE_MAX_DIGITAL_ZOOM))*10;
+
             Size[] jpegSizes = null;
             if (characteristics != null) {
                 jpegSizes = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP).getOutputSizes(ImageFormat.JPEG);
@@ -216,20 +243,63 @@ public class MainActivity extends ActionMenuActivity {
                 height = jpegSizes[0].getHeight();
             }
 
+            //zoom in and out interaction
+//            if (event.getPointerCount() > 1) {
+//                // Multi touch logic
+//                current_finger_spacing = getFingerSpacing(event);
+//                if(finger_spacing != 0){
+//                    if(current_finger_spacing > finger_spacing && maxzoom > zoom_level){
+//                        zoom_level++;
+//                    } else if (current_finger_spacing < finger_spacing && zoom_level > 1){
+//                        zoom_level--;
+//                    }
+//                    int minW = (int) (m.width() / maxzoom);
+//                    int minH = (int) (m.height() / maxzoom);
+//                    int difW = m.width() - minW;
+//                    int difH = m.height() - minH;
+//                    int cropW = difW /100 *(int)zoom_level;
+//                    int cropH = difH /100 *(int)zoom_level;
+//                    cropW -= cropW & 3;
+//                    cropH -= cropH & 3;
+//                    Rect zoom = new Rect(cropW, cropH, m.width() - cropW, m.height() - cropH);
+//                    mPreviewRequestBuilder.set(CaptureRequest.SCALER_CROP_REGION, zoom);
+//                }
+//                finger_spacing = current_finger_spacing;
+//            } else{
+//                if (action == MotionEvent.ACTION_UP) {
+//                    //single touch logic
+//                }
+//            }
+              // zoom in and out setting
+//            int zoom_level = 5;  //need to set finger event
+//            int minW = (int) (width / maxzoom);
+//            int minH = (int) (height / maxzoom);
+//            int difW = width - minW;
+//            int difH = height - minH;
+//            int cropW = difW /100 *(int)zoom_level;
+//            int cropH = difH /100 *(int)zoom_level;
+//
+//            cropW -= cropW & 3;
+//            cropH -= cropH & 3;
+//            Rect zoom = new Rect(cropW, cropH, width - cropW, height - cropH);
+
+
             ImageReader reader = ImageReader.newInstance(width, height, ImageFormat.JPEG, 1);
             List<Surface> outputSurfaces = new ArrayList<Surface>(2);
             outputSurfaces.add(reader.getSurface());
             outputSurfaces.add(new Surface(textureView.getSurfaceTexture()));
             final CaptureRequest.Builder captureBuilder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
             captureBuilder.addTarget(reader.getSurface());
+//            captureBuilder.set(CaptureRequest.SCALER_CROP_REGION, zoom);
             captureBuilder.set(CaptureRequest.CONTROL_MODE, CameraMetadata.CONTROL_MODE_AUTO);
             // Orientation
             int rotation = getWindowManager().getDefaultDisplay().getRotation();
             captureBuilder.set(CaptureRequest.JPEG_ORIENTATION, ORIENTATIONS.get(rotation));
+
             SimpleDateFormat formatter = new SimpleDateFormat("yyyy_MM_dd_HH_mm_ss", Locale.US);
             Date now = new Date();
 
-            final File file = new File(Environment.getExternalStorageDirectory()+"/"+formatter.format(now)+".jpg");
+            final File file = new File(getExternalFilesDir(Environment.DIRECTORY_PICTURES)+"/"+formatter.format(now)+".jpg");
 
             ImageReader.OnImageAvailableListener readerListener = new ImageReader.OnImageAvailableListener() {
                 @Override
@@ -238,46 +308,43 @@ public class MainActivity extends ActionMenuActivity {
                     try {
                         image = reader.acquireLatestImage();
 //                        image = reader.acquireNextImage();
-//                        if(System.currentTimeMillis() > cameraCaptureStartTime + 1000) {
-                        Log.d("image function","one second!");
 
                         ByteBuffer buffer = image.getPlanes()[0].getBuffer();
                         byte[] bytes = new byte[buffer.capacity()];
                         buffer.get(bytes);
-                        Log.d("image function","finished in if loop!");
-
+                        faceAPIStartTime = System.currentTimeMillis();
                         detectAndFrame(bytes);
-                        //save(bytes);
 
-//                        }else {
-//                            Log.d("image function","not one second yet");
-//                        };
-//                        cameraCaptureStartTime = System.currentTimeMillis();
-                    //} catch (FileNotFoundException e) {
-                    //    e.printStackTrace();
-                    //} catch (IOException e) {
-                    //    e.printStackTrace();
+                        if(isExternalStorageWritable()){
+                            save(bytes);
+                        }
+
+                    } catch (FileNotFoundException e) {
+                        e.printStackTrace();
+                    } catch (IOException e) {
+                        e.printStackTrace();
                     } finally {
                         if (image != null) {
                             image.close();
                         }
                     }
                 }
+
+                //save image to device
                 private void save(byte[] bytes) throws IOException {
                     OutputStream output = null;
+                    Bitmap bmp=null;
                     try {
-                        output = new FileOutputStream(file);
-                        output.write(bytes);
+//                        output = new FileOutputStream(file);
+//                        output.write(bytes);
                     } finally {
                         if (null != output) {
+//                            output.flush();
                             output.close();
+                            Log.d("emotion","saved image");
                         }
                     }
                 }
-
-
-
-
             };
 
             reader.setOnImageAvailableListener(readerListener, mBackgroundHandler);
@@ -286,7 +353,8 @@ public class MainActivity extends ActionMenuActivity {
                 @Override
                 public void onCaptureCompleted(CameraCaptureSession session, CaptureRequest request, TotalCaptureResult result) {
                     super.onCaptureCompleted(session, request, result);
-                    Toast.makeText(MainActivity.this, "Saved:" + file, Toast.LENGTH_SHORT).show();
+                    Log.d("emotion",String.format("takePicture end %s",cameraCaptureStartTime - System.currentTimeMillis()));
+//                    Toast.makeText(MainActivity.this, "Saved:" + file, Toast.LENGTH_SHORT).show();
                     createCameraPreview();
                 }
             };
@@ -295,7 +363,6 @@ public class MainActivity extends ActionMenuActivity {
                 public void onConfigured(CameraCaptureSession session) {
                     try {
                         session.capture(captureBuilder.build(), captureListener, mBackgroundHandler);
-//                        session.setRepeatingRequest(captureBuilder.build(), captureListener, mBackgroundHandler);
                         Log.d("onconfigured","setRepeatingRequest");
                     } catch (CameraAccessException e) {
                         e.printStackTrace();
@@ -312,12 +379,30 @@ public class MainActivity extends ActionMenuActivity {
     }
     protected void createCameraPreview() {
         try {
+            int width = 640;
+            int height = 480;
+                //zoom in and out setting
+//            float maxzoom = 10;
+//            int zoom_level = 5;  //need to set finger event
+//            int minW = (int) (width / maxzoom);
+//            int minH = (int) (height / maxzoom);
+//            int difW = width - minW;
+//            int difH = height - minH;
+//            int cropW = difW /100 *(int)zoom_level;
+//            int cropH = difH /100 *(int)zoom_level;
+//
+//            cropW -= cropW & 3;
+//            cropH -= cropH & 3;
+//            Rect zoom = new Rect(cropW, cropH, width - cropW, height - cropH);
+
             SurfaceTexture texture = textureView.getSurfaceTexture();
             assert texture != null;
             texture.setDefaultBufferSize(imageDimension.getWidth(), imageDimension.getHeight());
             Surface surface = new Surface(texture);
             captureRequestBuilder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
             captureRequestBuilder.addTarget(surface);
+//            captureRequestBuilder.set(CaptureRequest.SCALER_CROP_REGION,zoom );
+
             cameraDevice.createCaptureSession(Arrays.asList(surface), new CameraCaptureSession.StateCallback(){
                 @Override
                 public void onConfigured(@NonNull CameraCaptureSession cameraCaptureSession) {
@@ -331,7 +416,7 @@ public class MainActivity extends ActionMenuActivity {
                 }
                 @Override
                 public void onConfigureFailed(@NonNull CameraCaptureSession cameraCaptureSession) {
-                    Toast.makeText(MainActivity.this, "Configuration change", Toast.LENGTH_SHORT).show();
+//                    Toast.makeText(MainActivity.this, "Configuration change", Toast.LENGTH_SHORT).show();
                 }
             }, null);
         } catch (CameraAccessException e) {
@@ -340,7 +425,6 @@ public class MainActivity extends ActionMenuActivity {
     }
     private void openCamera() {
         CameraManager manager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
-        Log.e(TAG, "is camera open");
         try {
             cameraId = manager.getCameraIdList()[0];
             CameraCharacteristics characteristics = manager.getCameraCharacteristics(cameraId);
@@ -356,7 +440,6 @@ public class MainActivity extends ActionMenuActivity {
         } catch (CameraAccessException e) {
             e.printStackTrace();
         }
-        Log.e(TAG, "openCamera X");
     }
     protected void updatePreview() {
         if(null == cameraDevice) {
@@ -369,16 +452,7 @@ public class MainActivity extends ActionMenuActivity {
             e.printStackTrace();
         }
     }
-    private void closeCamera() {
-        if (null != cameraDevice) {
-            cameraDevice.close();
-            cameraDevice = null;
-        }
-        if (null != imageReader) {
-            imageReader.close();
-            imageReader = null;
-        }
-    }
+
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         if (requestCode == REQUEST_CAMERA_PERMISSION) {
@@ -409,13 +483,18 @@ public class MainActivity extends ActionMenuActivity {
     }
 
 
-
+    // detect capture frame and call Face API
     private void detectAndFrame(final byte[] bytes) {
-//        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-//        imageBitmap.compress(Bitmap.CompressFormat.JPEG, 100, outputStream);
+        // store image first, rotate then send to API (Face API can't detect not rotated image)
+        Bitmap storedBitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.length, null);
+        Matrix mat = new Matrix();
+        mat.postRotate(270);
+        storedBitmap = Bitmap.createBitmap(storedBitmap, 0, 0, storedBitmap.getWidth(), storedBitmap.getHeight(), mat, true);
+
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        storedBitmap.compress(Bitmap.CompressFormat.JPEG, 100, outputStream);
         ByteArrayInputStream inputStream =
-                new ByteArrayInputStream(bytes);
-        Log.d("detectFrame","Face API called");
+                new ByteArrayInputStream(outputStream.toByteArray());
 
         AsyncTask<InputStream, String, Face[]> detectTask =
                 new AsyncTask<InputStream, String, Face[]>() {
@@ -424,8 +503,6 @@ public class MainActivity extends ActionMenuActivity {
                     @Override
                     protected Face[] doInBackground(InputStream... params) {
                         try {
-                            Log.d("detectFrame","Inside doInBackground");
-
                             publishProgress("Detecting...");
                             Face[] result = faceServiceClient.detect(
                                     params[0],
@@ -434,11 +511,9 @@ public class MainActivity extends ActionMenuActivity {
                                     //null          // returnFaceAttributes:
                                     new FaceServiceClient.FaceAttributeType[] {
                                         FaceServiceClient.FaceAttributeType.Age,
-                                        FaceServiceClient.FaceAttributeType.Gender }
+                                        FaceServiceClient.FaceAttributeType.Emotion
+                                    }
                             );
-
-                                    Log.d("detectFrame","Finished Face result");
-
                             if (result == null){
                                 publishProgress(
                                         "Detection Finished. Nothing detected");
@@ -474,23 +549,20 @@ public class MainActivity extends ActionMenuActivity {
 //                            showError(exceptionMessage);
                         }
                         if (result == null) return;
-//                        showFaceResult(result);
-//                        ImageView imageView = findViewById(R.id.imageView2);
-//                        int imageResource=0;
+//
+                        Log.d("emotion",String.format("detect frame ends %s",faceAPIStartTime - System.currentTimeMillis()));
                         imageView.setImageResource(showFaceResult(result));//,imageResource));
-//                        imageView.setImageBitmap(
-//                                drawFaceRectanglesOnBitmap(imageBitmap, result));
-//                        imageBitmap.recycle();
+                        imageView.setVisibility(View.VISIBLE);
                     }
                 };
 
         detectTask.execute(inputStream);
     }
 
-
+    // get Face Result and return responding icon
     private int showFaceResult(Face[] faces) {
-        Log.d("showFaceResult", "Inside showFaceResult function");
-        int imageResource = getResources().getIdentifier("@drawable/happy","drawable",getPackageName());
+        Log.d("emotion", "Inside showFaceResult function");
+        int imageResource=0;
         Canvas canvas = new Canvas();
         Paint paint = new Paint();
         paint.setAntiAlias(true);
@@ -498,15 +570,14 @@ public class MainActivity extends ActionMenuActivity {
         paint.setStyle(Paint.Style.FILL);
         paint.setColor(Color.RED);
         paint.setStrokeWidth(10);
-        String emo;
+        String emo="";
         if (faces != null) {
-            Log.d("emotion","face not null");
-            System.out.println(faces.length);
+            Log.d("emotion","face numbers %s" + faces.length);
+
             for (Face face : faces) {
-                Log.d("emotion","in for loop");
                 FaceRectangle faceRectangle = face.faceRectangle;
+//                System.out.print(face.faceAttributes.emotion);
                 Emotion faceEmotion = face.faceAttributes.emotion;
-                //System.out.print(faceEmotion);
                 double anger = faceEmotion.anger;
                 double contempt = faceEmotion.contempt;
                 double disgust = faceEmotion.disgust;
@@ -519,18 +590,35 @@ public class MainActivity extends ActionMenuActivity {
                 String[] emoArr = {"anger", "contempt", "disgust", "fear", "happiness", "neutral", "sadness", "surprise"};
                 int maxEmo = getMaxValue(emoArrVal);
                 emo = emoArr[maxEmo];
-                paint.setTextSize(400);
-                canvas.drawText(emo, 75, 385, paint);
-
-                canvas.translate(0, 200);
-                Log.d("emotion",emo);
+//                paint.setTextSize(400);
+//                canvas.drawText(emo, 75, 385, paint);
+//                canvas.translate(0, 200);
 
             }
         }else{
-            paint.setTextSize(400);
-            canvas.drawText("no face detected",75,385,paint);
-            canvas.translate(0,200);
+//            paint.setTextSize(400);
+//            canvas.drawText("no face detected",75,385,paint);
+//            canvas.translate(0,200);
         }
+        Log.d("emotion",emo);
+
+        switch(emo){
+            default:
+                imageResource = android.R.color.transparent;
+                break;
+            case "neutral":
+                imageResource = getResources().getIdentifier("@drawable/neutral","drawable",getPackageName());
+                break;
+
+            case "happiness":
+                imageResource = getResources().getIdentifier("@drawable/happy","drawable",getPackageName());
+                break;
+
+            case "sadness":
+                imageResource = getResources().getIdentifier("@drawable/sad","drawable",getPackageName());
+                break;
+        }
+        Log.d("imageResource", String.valueOf(imageResource));
         return imageResource;
     }
 
@@ -544,7 +632,7 @@ public class MainActivity extends ActionMenuActivity {
                 .create().show();
     };
 
-public static int getMaxValue(double[] numbers){
+    public static int getMaxValue(double[] numbers){
         double maxValue = numbers[0];
         int maxIndex = 0;
 
@@ -556,4 +644,21 @@ public static int getMaxValue(double[] numbers){
         }
         return maxIndex;
         }
+
+
+
+    private boolean isExternalStorageWritable() {
+
+        return Environment.MEDIA_MOUNTED.equals(Environment.getExternalStorageState());
+
+    }
+
+    private boolean isExternalStorageReadable() {
+
+        String state = Environment.getExternalStorageState();
+
+        return (Environment.MEDIA_MOUNTED.equals(state) || Environment.MEDIA_MOUNTED_READ_ONLY.equals(state));
+
+    }
+
 }
