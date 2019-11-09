@@ -12,12 +12,19 @@
     <TextureView
         android:id="@+id/textureView"
         android:layout_width="match_parent"
-        android:layout_height="480dp"
+        android:layout_height="80dp"
         android:layout_alignParentTop="true"
-        android:layout_above="@+id/btn_takepicture"
-        />
-
-
+        android:layout_alignParentBottom="true"
+        android:background="@android:color/transparent"
+        android:layout_marginTop="10dp"
+        android:layout_marginBottom="102dp" />
+    <ImageView
+        android:id="@+id/imageView2"
+        android:layout_width="198dp"
+        android:layout_height="54dp"
+        android:layout_alignParentTop="true"
+        android:layout_alignParentLeft="true"
+        android:visibility="gone" />
     <Button
         android:id="@+id/btn_takepicture"
         android:layout_width="wrap_content"
@@ -34,17 +41,21 @@
 <!--        android:layout_gravity="center_horizontal"-->
 <!--        android:id="@+id/imageView1"-->
 <!--        />-->
+
+
     <ImageView
         android:id="@+id/imageView"
         android:layout_width="50dp"
         android:layout_height="50dp"
-        android:layout_gravity="end|right|top"
         android:visibility="gone" />
+
+
+
     <ImageView
         android:id="@+id/imageHappy"
         android:layout_width="50dp"
         android:layout_height="50dp"
-        android:layout_gravity="end|right|top"
+
         android:src="@drawable/happy"
         android:visibility="gone" />
 
@@ -62,6 +73,13 @@
         android:layout_height="50dp"
         android:layout_gravity="end|right|top"
         android:src="@drawable/sad"
+        android:visibility="gone" />
+
+    <ImageView
+        android:id="@+id/imageRedDot"
+        android:layout_width="50dp"
+        android:layout_height="50dp"
+        android:layout_gravity="end|right|top"
         android:visibility="gone" />
 
 </RelativeLayout>

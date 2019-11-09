@@ -1,2 +1,3 @@
-include ':app'
+include ':app', ':ClientLibrary'
 rootProject.name='MyApplication'
+project(':ClientLibrary').projectDir = new File('app/libs/ClientLibrary')

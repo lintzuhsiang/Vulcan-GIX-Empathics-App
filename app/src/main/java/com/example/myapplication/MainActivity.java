@@ -69,7 +69,12 @@ import com.vuzix.hud.actionmenu.ActionMenuActivity;
 
 import com.microsoft.projectoxford.face.*;
 import com.microsoft.projectoxford.face.contract.*;
-
+import com.microsoft.cognitive.textanalytics.model.request.RequestDocIncludeLanguage;
+import com.microsoft.cognitive.textanalytics.model.request.keyphrases_sentiment.TextRequest;
+import com.microsoft.cognitive.textanalytics.model.response.sentiment.SentimentResponse;
+import com.microsoft.cognitive.textanalytics.retrofit.ServiceCall;
+import com.microsoft.cognitive.textanalytics.retrofit.ServiceCallback;
+import com.microsoft.cognitive.textanalytics.retrofit.ServiceRequestClient;
 public class MainActivity extends ActionMenuActivity {
 
     private static final String TAG = "MainActivity";
@@ -78,6 +83,7 @@ public class MainActivity extends ActionMenuActivity {
     private Button takePictureButton;
     private TextureView textureView;
     private ImageView imageView;
+    private ImageView imageViewRedDot;
 
     private static final SparseIntArray ORIENTATIONS = new SparseIntArray();
     static {
@@ -113,27 +119,46 @@ public class MainActivity extends ActionMenuActivity {
     private final String apiEndpoint =  FACE_ENDPOINT;
     private final String subscriptionKey = FACE_SUBSCRIPTION_KEY;
     private final FaceServiceClient faceServiceClient = new FaceServiceRestClient(apiEndpoint, subscriptionKey);
-    @Override
 
+    private MicrophoneStream microphoneStream;
+    private MicrophoneStream createMicrophoneStream() {
+        if (microphoneStream != null) {
+            microphoneStream.close();
+            microphoneStream = null;
+        }
+
+        microphoneStream = new MicrophoneStream();
+        return microphoneStream;
+    }
+
+    @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         textureView = (TextureView) findViewById(R.id.textureView);
+        textureView.setOpaque(true);
         assert textureView != null;
+//        textureView.setFormat()
+//        textureView.setTransparent(true);
         textureView.setSurfaceTextureListener(textureListener);
 
         takePictureButton = (Button) findViewById(R.id.btn_takepicture);
         assert takePictureButton != null;
 
         imageView = (ImageView) findViewById(R.id.imageView);
+        imageViewRedDot = (ImageView) findViewById(R.id.imageView2);
 
+        int imageResource = getResources().getIdentifier("@drawable/reddot", "drawable", getPackageName());
+        imageViewRedDot.setImageResource(imageResource);
         takePictureButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 btn_flag ^= 1;
                 if(btn_flag==1){
                     Toast.makeText(MainActivity.this, "Start Taking Photos", Toast.LENGTH_SHORT).show();
-
+                  
+                    imageViewRedDot.setVisibility(View.VISIBLE);
+                    
                     runnableCode = new Runnable() {
                         @Override
                         public void run() {
@@ -150,11 +175,15 @@ public class MainActivity extends ActionMenuActivity {
                     Toast.makeText(MainActivity.this, "Stop Taking Photos", Toast.LENGTH_SHORT).show();
                     if (runnableCode != null) {
                         timerHandler.removeCallbacks(runnableCode);
+                        imageViewRedDot.setVisibility(View.INVISIBLE);
+                        imageView.setVisibility(View.INVISIBLE);
                         Log.d("Handlers", "Stop runnable on main thread");
                     }
                 }
             }
         });
+
+
 
     }
 
@@ -184,7 +213,7 @@ public class MainActivity extends ActionMenuActivity {
             //This is called when the camera is open
             Log.e(TAG, "onOpened");
             cameraDevice = camera;
-            createCameraPreview();
+//            createCameraPreview();
         }
         @Override
         public void onDisconnected(CameraDevice camera) {
@@ -202,7 +231,7 @@ public class MainActivity extends ActionMenuActivity {
         public void onCaptureCompleted(CameraCaptureSession session, CaptureRequest request, TotalCaptureResult result) {
             super.onCaptureCompleted(session, request, result);
 //            Toast.makeText(MainActivity.this, "Saved:" + file, Toast.LENGTH_SHORT).show();
-            createCameraPreview();
+//            createCameraPreview();
         }
     };
 
@@ -286,6 +315,7 @@ public class MainActivity extends ActionMenuActivity {
 
             ImageReader reader = ImageReader.newInstance(width, height, ImageFormat.JPEG, 1);
             List<Surface> outputSurfaces = new ArrayList<Surface>(2);
+
             outputSurfaces.add(reader.getSurface());
             outputSurfaces.add(new Surface(textureView.getSurfaceTexture()));
             final CaptureRequest.Builder captureBuilder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
@@ -355,7 +385,7 @@ public class MainActivity extends ActionMenuActivity {
                     super.onCaptureCompleted(session, request, result);
                     Log.d("emotion",String.format("takePicture end %s",cameraCaptureStartTime - System.currentTimeMillis()));
 //                    Toast.makeText(MainActivity.this, "Saved:" + file, Toast.LENGTH_SHORT).show();
-                    createCameraPreview();
+//                    createCameraPreview();
                 }
             };
             cameraDevice.createCaptureSession(outputSurfaces, new CameraCaptureSession.StateCallback() {
@@ -590,9 +620,6 @@ public class MainActivity extends ActionMenuActivity {
                 String[] emoArr = {"anger", "contempt", "disgust", "fear", "happiness", "neutral", "sadness", "surprise"};
                 int maxEmo = getMaxValue(emoArrVal);
                 emo = emoArr[maxEmo];
-//                paint.setTextSize(400);
-//                canvas.drawText(emo, 75, 385, paint);
-//                canvas.translate(0, 200);
 
             }
         }else{
@@ -622,15 +649,6 @@ public class MainActivity extends ActionMenuActivity {
         return imageResource;
     }
 
-    private void showError(String message) {
-        new AlertDialog.Builder(this)
-                .setTitle("Error")
-                .setMessage(message)
-                .setPositiveButton("OK", new DialogInterface.OnClickListener() {
-                    public void onClick(DialogInterface dialog, int id) {
-                    }})
-                .create().show();
-    };
 
     public static int getMaxValue(double[] numbers){
         double maxValue = numbers[0];
@@ -644,8 +662,6 @@ public class MainActivity extends ActionMenuActivity {
         }
         return maxIndex;
         }
-
-
 
     private boolean isExternalStorageWritable() {
 
