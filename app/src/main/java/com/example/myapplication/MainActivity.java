@@ -40,6 +40,7 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.hardware.camera2.*;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import java.io.ByteArrayInputStream;
@@ -50,6 +51,9 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.nio.ByteBuffer;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -65,16 +69,26 @@ import java.io.FileReader;
 import java.io.OutputStreamWriter;
 
 
+import com.microsoft.cognitiveservices.speech.SpeechConfig;
 import com.vuzix.hud.actionmenu.ActionMenuActivity;
 
-import com.microsoft.projectoxford.face.*;
-import com.microsoft.projectoxford.face.contract.*;
+//import com.microsoft.projectoxford.face.*;
+//import com.microsoft.projectoxford.face.contract.*;
 import com.microsoft.cognitive.textanalytics.model.request.RequestDocIncludeLanguage;
 import com.microsoft.cognitive.textanalytics.model.request.keyphrases_sentiment.TextRequest;
 import com.microsoft.cognitive.textanalytics.model.response.sentiment.SentimentResponse;
 import com.microsoft.cognitive.textanalytics.retrofit.ServiceCall;
 import com.microsoft.cognitive.textanalytics.retrofit.ServiceCallback;
 import com.microsoft.cognitive.textanalytics.retrofit.ServiceRequestClient;
+
+//import org.apache.http.client.HttpClient;
+//import org.apache.http.client.methods.HttpPost;
+//import org.apache.http.entity.mime.HttpMultipartMode;
+//import org.apache.http.entity.mime.MultipartEntity;
+//import org.apache.http.entity.mime.content.FileBody;
+//import org.apache.http.entity.mime.content.StringBody;
+
+import com.example.myapplication.NetworkClient;
 public class MainActivity extends ActionMenuActivity {
 
     private static final String TAG = "MainActivity";
@@ -100,6 +114,8 @@ public class MainActivity extends ActionMenuActivity {
     protected CaptureRequest.Builder captureRequestBuilder;
     private Size imageDimension;
     private static final int REQUEST_CAMERA_PERMISSION = 200;
+    Bitmap storedBitmap;
+    File filename;
 
     //thread
     private Handler mBackgroundHandler;
@@ -118,9 +134,13 @@ public class MainActivity extends ActionMenuActivity {
     String FACE_ENDPOINT = "https://empthetic.cognitiveservices.azure.com/face/v1.0";
     private final String apiEndpoint =  FACE_ENDPOINT;
     private final String subscriptionKey = FACE_SUBSCRIPTION_KEY;
-    private final FaceServiceClient faceServiceClient = new FaceServiceRestClient(apiEndpoint, subscriptionKey);
+//    private final FaceServiceClient faceServiceClient = new FaceServiceRestClient(apiEndpoint, subscriptionKey);
 
     private MicrophoneStream microphoneStream;
+
+    public MainActivity() throws MalformedURLException {
+    }
+
     private MicrophoneStream createMicrophoneStream() {
         if (microphoneStream != null) {
             microphoneStream.close();
@@ -130,6 +150,25 @@ public class MainActivity extends ActionMenuActivity {
         microphoneStream = new MicrophoneStream();
         return microphoneStream;
     }
+
+    //Speech-to-Text and Text Sentiment API
+    private String SentimentSubscriptionKey="bd009590e8754a29b599a89eb0102f55";
+    private static final String SpeechSubscriptionKey = "d122e91d2df24ce889a13695542564c2";
+    private static final String SpeechRegion = "eastus";
+    private ServiceCall mSentimentCall;
+    private ServiceCallback mSentimentCallback;
+    private ServiceRequestClient mRequest;
+
+    private TextView mSentimentScore;
+    private SpeechConfig speechConfig;
+
+
+    ///HTTP
+    URL url = new URL("http://empathics.azurewebsites.net/health_check");
+
+
+
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -142,7 +181,7 @@ public class MainActivity extends ActionMenuActivity {
 //        textureView.setTransparent(true);
         textureView.setSurfaceTextureListener(textureListener);
 
-        takePictureButton = (Button) findViewById(R.id.btn_takepicture);
+        takePictureButton = findViewById(R.id.btn_takepicture);
         assert takePictureButton != null;
 
         imageView = (ImageView) findViewById(R.id.imageView);
@@ -150,10 +189,23 @@ public class MainActivity extends ActionMenuActivity {
 
         int imageResource = getResources().getIdentifier("@drawable/reddot", "drawable", getPackageName());
         imageViewRedDot.setImageResource(imageResource);
+
+        Toast.makeText(MainActivity.this, "Tap to take photos.", Toast.LENGTH_LONG).show();
+
+        mRequest = new ServiceRequestClient(SentimentSubscriptionKey);
+        try {
+            speechConfig = SpeechConfig.fromSubscription(SpeechSubscriptionKey, SpeechRegion);
+        } catch (Exception ex) {
+            System.out.println(ex.getMessage());
+            return;
+        }
+
+
         takePictureButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 btn_flag ^= 1;
+                //sendHTTP();
                 if(btn_flag==1){
                     Toast.makeText(MainActivity.this, "Start Taking Photos", Toast.LENGTH_SHORT).show();
                   
@@ -165,6 +217,11 @@ public class MainActivity extends ActionMenuActivity {
                             Log.d("Handlers", "Called on main thread");
                             cameraCaptureStartTime = System.currentTimeMillis();
                             takePicture();
+                            NetworkClient client = new NetworkClient();
+                            client.uploadToServer(filename);
+//                            Log.d("emotion",filename.getAbsolutePath());
+//                            Log.d("emotion",filename.getName());
+//                            storedBitmap;
 
                             timerHandler.postDelayed(this, 2000);
                         }
@@ -226,14 +283,6 @@ public class MainActivity extends ActionMenuActivity {
         }
     };
 
-    final CameraCaptureSession.CaptureCallback captureListener = new CameraCaptureSession.CaptureCallback() {
-        @Override
-        public void onCaptureCompleted(CameraCaptureSession session, CaptureRequest request, TotalCaptureResult result) {
-            super.onCaptureCompleted(session, request, result);
-//            Toast.makeText(MainActivity.this, "Saved:" + file, Toast.LENGTH_SHORT).show();
-//            createCameraPreview();
-        }
-    };
 
     protected void startBackgroundThread() {
         mBackgroundThread = new HandlerThread("Camera Background");
@@ -251,10 +300,11 @@ public class MainActivity extends ActionMenuActivity {
         }
     }
 
-    protected void takePicture() {
+    protected Bitmap takePicture() {
+
         if(null == cameraDevice) {
             Log.e(TAG, "cameraDevice is null");
-            return;
+            return null;
         }
         CameraManager manager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
         try {
@@ -271,46 +321,6 @@ public class MainActivity extends ActionMenuActivity {
                 width = jpegSizes[0].getWidth();
                 height = jpegSizes[0].getHeight();
             }
-
-            //zoom in and out interaction
-//            if (event.getPointerCount() > 1) {
-//                // Multi touch logic
-//                current_finger_spacing = getFingerSpacing(event);
-//                if(finger_spacing != 0){
-//                    if(current_finger_spacing > finger_spacing && maxzoom > zoom_level){
-//                        zoom_level++;
-//                    } else if (current_finger_spacing < finger_spacing && zoom_level > 1){
-//                        zoom_level--;
-//                    }
-//                    int minW = (int) (m.width() / maxzoom);
-//                    int minH = (int) (m.height() / maxzoom);
-//                    int difW = m.width() - minW;
-//                    int difH = m.height() - minH;
-//                    int cropW = difW /100 *(int)zoom_level;
-//                    int cropH = difH /100 *(int)zoom_level;
-//                    cropW -= cropW & 3;
-//                    cropH -= cropH & 3;
-//                    Rect zoom = new Rect(cropW, cropH, m.width() - cropW, m.height() - cropH);
-//                    mPreviewRequestBuilder.set(CaptureRequest.SCALER_CROP_REGION, zoom);
-//                }
-//                finger_spacing = current_finger_spacing;
-//            } else{
-//                if (action == MotionEvent.ACTION_UP) {
-//                    //single touch logic
-//                }
-//            }
-              // zoom in and out setting
-//            int zoom_level = 5;  //need to set finger event
-//            int minW = (int) (width / maxzoom);
-//            int minH = (int) (height / maxzoom);
-//            int difW = width - minW;
-//            int difH = height - minH;
-//            int cropW = difW /100 *(int)zoom_level;
-//            int cropH = difH /100 *(int)zoom_level;
-//
-//            cropW -= cropW & 3;
-//            cropH -= cropH & 3;
-//            Rect zoom = new Rect(cropW, cropH, width - cropW, height - cropH);
 
 
             ImageReader reader = ImageReader.newInstance(width, height, ImageFormat.JPEG, 1);
@@ -329,7 +339,7 @@ public class MainActivity extends ActionMenuActivity {
             SimpleDateFormat formatter = new SimpleDateFormat("yyyy_MM_dd_HH_mm_ss", Locale.US);
             Date now = new Date();
 
-            final File file = new File(getExternalFilesDir(Environment.DIRECTORY_PICTURES)+"/"+formatter.format(now)+".jpg");
+            filename = new File(getExternalFilesDir(Environment.DIRECTORY_PICTURES)+"/"+formatter.format(now)+".jpg");
 
             ImageReader.OnImageAvailableListener readerListener = new ImageReader.OnImageAvailableListener() {
                 @Override
@@ -343,7 +353,7 @@ public class MainActivity extends ActionMenuActivity {
                         byte[] bytes = new byte[buffer.capacity()];
                         buffer.get(bytes);
                         faceAPIStartTime = System.currentTimeMillis();
-                        detectAndFrame(bytes);
+//                        detectAndFrame(bytes);
 
                         if(isExternalStorageWritable()){
                             save(bytes);
@@ -356,20 +366,26 @@ public class MainActivity extends ActionMenuActivity {
                     } finally {
                         if (image != null) {
                             image.close();
+                            Log.d("emotion","image close");
                         }
                     }
                 }
 
                 //save image to device
                 private void save(byte[] bytes) throws IOException {
-                    OutputStream output = null;
-                    Bitmap bmp=null;
-                    try {
-//                        output = new FileOutputStream(file);
-//                        output.write(bytes);
+                    FileOutputStream output = null;
+                    storedBitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.length, null);
+                    Matrix mat = new Matrix();
+                    mat.postRotate(270);
+                    storedBitmap = Bitmap.createBitmap(storedBitmap, 0, 0, storedBitmap.getWidth(), storedBitmap.getHeight(), mat, true);
+
+                    try{
+                    output = new FileOutputStream(filename);
+                    storedBitmap.compress(Bitmap.CompressFormat.JPEG, 100, output);
+
                     } finally {
                         if (null != output) {
-//                            output.flush();
+                            output.flush();
                             output.close();
                             Log.d("emotion","saved image");
                         }
@@ -406,6 +422,7 @@ public class MainActivity extends ActionMenuActivity {
         } catch (CameraAccessException e) {
             e.printStackTrace();
         }
+        return storedBitmap;
     }
     protected void createCameraPreview() {
         try {
@@ -514,140 +531,136 @@ public class MainActivity extends ActionMenuActivity {
 
 
     // detect capture frame and call Face API
-    private void detectAndFrame(final byte[] bytes) {
-        // store image first, rotate then send to API (Face API can't detect not rotated image)
-        Bitmap storedBitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.length, null);
-        Matrix mat = new Matrix();
-        mat.postRotate(270);
-        storedBitmap = Bitmap.createBitmap(storedBitmap, 0, 0, storedBitmap.getWidth(), storedBitmap.getHeight(), mat, true);
-
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        storedBitmap.compress(Bitmap.CompressFormat.JPEG, 100, outputStream);
-        ByteArrayInputStream inputStream =
-                new ByteArrayInputStream(outputStream.toByteArray());
-
-        AsyncTask<InputStream, String, Face[]> detectTask =
-                new AsyncTask<InputStream, String, Face[]>() {
-                    String exceptionMessage = "";
-
-                    @Override
-                    protected Face[] doInBackground(InputStream... params) {
-                        try {
-                            publishProgress("Detecting...");
-                            Face[] result = faceServiceClient.detect(
-                                    params[0],
-                                    true,         // returnFaceId
-                                    false,        // returnFaceLandmarks
-                                    //null          // returnFaceAttributes:
-                                    new FaceServiceClient.FaceAttributeType[] {
-                                        FaceServiceClient.FaceAttributeType.Age,
-                                        FaceServiceClient.FaceAttributeType.Emotion
-                                    }
-                            );
-                            if (result == null){
-                                publishProgress(
-                                        "Detection Finished. Nothing detected");
-                                return null;
-                            }
-                            publishProgress(String.format(
-                                    "Detection Finished. %d face(s) detected",
-                                    result.length));
-                            return result;
-                        } catch (Exception e) {
-                            exceptionMessage = String.format(
-                                    "Detection failed: %s", e.getMessage());
-                            return null;
-                        }
-                    }
-
-                    @Override
-                    protected void onPreExecute() {
-                        //TODO: show progress dialog
-//                        detectionProgressDialog.show();
-                    }
-                    @Override
-                    protected void onProgressUpdate(String... progress) {
-                        //TODO: update progress
-//                        detectionProgressDialog.setMessage(progress[0]);
-                    }
-                    @Override
-                    protected void onPostExecute(Face[] result) {
-                        //TODO: update face frames
-//                        detectionProgressDialog.dismiss();
-
-                        if(!exceptionMessage.equals("")){
-//                            showError(exceptionMessage);
-                        }
-                        if (result == null) return;
+//    private void detectAndFrame(final Bitmap bitmap) {
 //
-                        Log.d("emotion",String.format("detect frame ends %s",faceAPIStartTime - System.currentTimeMillis()));
-                        imageView.setImageResource(showFaceResult(result));//,imageResource));
-                        imageView.setVisibility(View.VISIBLE);
-                    }
-                };
-
-        detectTask.execute(inputStream);
-    }
-
-    // get Face Result and return responding icon
-    private int showFaceResult(Face[] faces) {
-        Log.d("emotion", "Inside showFaceResult function");
-        int imageResource=0;
-        Canvas canvas = new Canvas();
-        Paint paint = new Paint();
-        paint.setAntiAlias(true);
-        //paint.setStyle(Paint.Style.STROKE);
-        paint.setStyle(Paint.Style.FILL);
-        paint.setColor(Color.RED);
-        paint.setStrokeWidth(10);
-        String emo="";
-        if (faces != null) {
-            Log.d("emotion","face numbers %s" + faces.length);
-
-            for (Face face : faces) {
-                FaceRectangle faceRectangle = face.faceRectangle;
-//                System.out.print(face.faceAttributes.emotion);
-                Emotion faceEmotion = face.faceAttributes.emotion;
-                double anger = faceEmotion.anger;
-                double contempt = faceEmotion.contempt;
-                double disgust = faceEmotion.disgust;
-                double fear = faceEmotion.fear;
-                double happiness = faceEmotion.happiness;
-                double neutral = faceEmotion.neutral;
-                double sadness = faceEmotion.sadness;
-                double surprise = faceEmotion.surprise;
-                double[] emoArrVal = {anger, contempt, disgust, fear, happiness, neutral, sadness, surprise};
-                String[] emoArr = {"anger", "contempt", "disgust", "fear", "happiness", "neutral", "sadness", "surprise"};
-                int maxEmo = getMaxValue(emoArrVal);
-                emo = emoArr[maxEmo];
-
-            }
-        }else{
-//            paint.setTextSize(400);
-//            canvas.drawText("no face detected",75,385,paint);
-//            canvas.translate(0,200);
-        }
-        Log.d("emotion",emo);
-
-        switch(emo){
-            default:
-                imageResource = android.R.color.transparent;
-                break;
-            case "neutral":
-                imageResource = getResources().getIdentifier("@drawable/neutral","drawable",getPackageName());
-                break;
-
-            case "happiness":
-                imageResource = getResources().getIdentifier("@drawable/happy","drawable",getPackageName());
-                break;
-
-            case "sadness":
-                imageResource = getResources().getIdentifier("@drawable/sad","drawable",getPackageName());
-                break;
-        }
-        Log.d("imageResource", String.valueOf(imageResource));
-        return imageResource;
-    }
+//
+//        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+//        bitmap.compress(Bitmap.CompressFormat.JPEG,100,outputStream);
+//        ByteArrayInputStream inputStream =
+//                new ByteArrayInputStream(outputStream.toByteArray());
+//
+//        AsyncTask<InputStream, String, Face[]> detectTask =
+//                new AsyncTask<InputStream, String, Face[]>() {
+//                    String exceptionMessage = "";
+//
+//                    @Override
+//                    protected Face[] doInBackground(InputStream... params) {
+//                        try {
+//                            publishProgress("Detecting...");
+//                            Face[] result = faceServiceClient.detect(
+//                                    params[0],
+//                                    true,         // returnFaceId
+//                                    false,        // returnFaceLandmarks
+//                                    //null          // returnFaceAttributes:
+//                                    new FaceServiceClient.FaceAttributeType[] {
+//                                        FaceServiceClient.FaceAttributeType.Age,
+//                                        FaceServiceClient.FaceAttributeType.Emotion
+//                                    }
+//                            );
+//                            if (result == null){
+//                                publishProgress(
+//                                        "Detection Finished. Nothing detected");
+//                                return null;
+//                            }
+//                            publishProgress(String.format(
+//                                    "Detection Finished. %d face(s) detected",
+//                                    result.length));
+//                            return result;
+//                        } catch (Exception e) {
+//                            exceptionMessage = String.format(
+//                                    "Detection failed: %s", e.getMessage());
+//                            return null;
+//                        }
+//                    }
+//
+//                    @Override
+//                    protected void onPreExecute() {
+//                        //TODO: show progress dialog
+////                        detectionProgressDialog.show();
+//                    }
+//                    @Override
+//                    protected void onProgressUpdate(String... progress) {
+//                        //TODO: update progress
+////                        detectionProgressDialog.setMessage(progress[0]);
+//                    }
+//                    @Override
+//                    protected void onPostExecute(Face[] result) {
+//                        //TODO: update face frames
+////                        detectionProgressDialog.dismiss();
+//
+//                        if(!exceptionMessage.equals("")){
+////                            showError(exceptionMessage);
+//                        }
+//                        if (result == null) return;
+////
+//                        Log.d("emotion",String.format("detect frame ends %s",faceAPIStartTime - System.currentTimeMillis()));
+//                        imageView.setImageResource(showFaceResult(result));//,imageResource));
+//                        imageView.setVisibility(View.VISIBLE);
+//                    }
+//                };
+//
+//        detectTask.execute(inputStream);
+//    }
+//
+//    // get Face Result and return responding icon
+//    private int showFaceResult(Face[] faces) {
+//        Log.d("emotion", "Inside showFaceResult function");
+//        int imageResource=0;
+//        Canvas canvas = new Canvas();
+//        Paint paint = new Paint();
+//        paint.setAntiAlias(true);
+//        //paint.setStyle(Paint.Style.STROKE);
+//        paint.setStyle(Paint.Style.FILL);
+//        paint.setColor(Color.RED);
+//        paint.setStrokeWidth(10);
+//        String emo="";
+//        if (faces != null) {
+//            Log.d("emotion","face numbers %s" + faces.length);
+//
+//            for (Face face : faces) {
+//                FaceRectangle faceRectangle = face.faceRectangle;
+////                System.out.print(face.faceAttributes.emotion);
+//                Emotion faceEmotion = face.faceAttributes.emotion;
+//                double anger = faceEmotion.anger;
+//                double contempt = faceEmotion.contempt;
+//                double disgust = faceEmotion.disgust;
+//                double fear = faceEmotion.fear;
+//                double happiness = faceEmotion.happiness;
+//                double neutral = faceEmotion.neutral;
+//                double sadness = faceEmotion.sadness;
+//                double surprise = faceEmotion.surprise;
+//                double[] emoArrVal = {anger, contempt, disgust, fear, happiness, neutral, sadness, surprise};
+//                String[] emoArr = {"anger", "contempt", "disgust", "fear", "happiness", "neutral", "sadness", "surprise"};
+//                int maxEmo = getMaxValue(emoArrVal);
+//                emo = emoArr[maxEmo];
+//
+//            }
+//        }else{
+////            paint.setTextSize(400);
+////            canvas.drawText("no face detected",75,385,paint);
+////            canvas.translate(0,200);
+//        }
+//        Log.d("emotion",emo);
+//
+//        switch(emo){
+//            default:
+//                imageResource = android.R.color.transparent;
+//                break;
+//            case "neutral":
+//                imageResource = getResources().getIdentifier("@drawable/neutral","drawable",getPackageName());
+//                break;
+//
+//            case "happiness":
+//                imageResource = getResources().getIdentifier("@drawable/happy","drawable",getPackageName());
+//                break;
+//
+//            case "sadness":
+//                imageResource = getResources().getIdentifier("@drawable/sad","drawable",getPackageName());
+//                break;
+//        }
+//        Log.d("imageResource", String.valueOf(imageResource));
+//        return imageResource;
+//    }
 
 
     public static int getMaxValue(double[] numbers){
@@ -669,12 +682,55 @@ public class MainActivity extends ActionMenuActivity {
 
     }
 
-    private boolean isExternalStorageReadable() {
 
-        String state = Environment.getExternalStorageState();
+//    public void sendHTTP() {
+//        HttpURLConnection client = null;
+//
+//        try{
+//            client = (HttpURLConnection) url.openConnection();
+//            client.setRequestMethod(“GET”);
+//
+//            int code = client.getResponseCode();
+//            Log.d("emotion", String.valueOf(code));
+//
+////            client.setRequestProperty(“Key”,”Value”);
+//        }catch (IOException e) {
+//            e.printStackTrace();
+//        }
+//
+//        finally {
+//            if (client != null) {
+//                client.disconnect();
+//            }
+//        }
+//
+//
+//    }
 
-        return (Environment.MEDIA_MOUNTED.equals(state) || Environment.MEDIA_MOUNTED_READ_ONLY.equals(state));
-
-    }
+//    public void post(String url, List<NameValuePair> nameValuePairs) {
+//        HttpClient httpClient = new DefaultHttpClient();
+//        HttpContext localContext = new BasicHttpContext();
+//        HttpPost httpPost = new HttpPost(url);
+//
+//        try {
+//            MultipartEntity entity = new MultipartEntity(HttpMultipartMode.BROWSER_COMPATIBLE);
+//
+//            for(int index=0; index < nameValuePairs.size(); index++) {
+//                if(nameValuePairs.get(index).getName().equalsIgnoreCase("image")) {
+//                    // If the key equals to "image", we use FileBody to transfer the data
+//                    entity.addPart(nameValuePairs.get(index).getName(), new FileBody(new File (nameValuePairs.get(index).getValue())));
+//                } else {
+//                    // Normal string data
+//                    entity.addPart(nameValuePairs.get(index).getName(), new StringBody(nameValuePairs.get(index).getValue()));
+//                }
+//            }
+//
+//            httpPost.setEntity(entity);
+//
+//            HttpResponse response = httpClient.execute(httpPost, localContext);
+//        } catch (IOException e) {
+//            e.printStackTrace();
+//        }
+//    }
 
 }
