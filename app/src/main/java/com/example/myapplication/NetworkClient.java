@@ -48,11 +48,14 @@ public class NetworkClient {
         UploadAPIs uploadAPIs = retrofit.create(UploadAPIs.class);
 
 //        File file = new File(filePath);
-//        RequestBody fileReqBody = RequestBody.create(MediaType.parse("image/*"),file.getAbsoluteFile());
-//        MultipartBody.Part part = MultipartBody.Part.createFormData("upload",file.getName());
-        RequestBody fileReqBody = RequestBody.create(MediaType.parse("image/*")," /storage/emulated/0/Android/data/com.example.myapplication/files/Pictures/2019_11_10_02_03_41.jpg");
-        MultipartBody.Part part = MultipartBody.Part.createFormData("image","2019_11_10_02_03_41.jpg",fileReqBody);
+        Log.d("client","before fileReqBody");
+
+        RequestBody fileReqBody = RequestBody.create(MediaType.parse("image/*"),file.getAbsoluteFile());
+        MultipartBody.Part part = MultipartBody.Part.createFormData("image",file.getName());
+//        RequestBody fileReqBody = RequestBody.create(MediaType.parse("image/*")," /storage/emulated/0/Android/data/com.example.myapplication/files/Pictures/2019_11_10_10_25_16.jpg");
+//        MultipartBody.Part part = MultipartBody.Part.createFormData("image","2019_11_10_10_25_16.jpg",fileReqBody);
         RequestBody description = RequestBody.create(MediaType.parse("text/plain"),"image-type");
+        Log.d("client","after fileReqBody");
 
         Call call = uploadAPIs.uploadImage(part,fileReqBody);
         Log.d("client","upLoadToServer");

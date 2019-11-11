@@ -1,0 +1,77 @@
+package com.example.myapplication;
+
+import android.util.Log;
+import android.widget.Button;
+import android.widget.TextView;
+import android.widget.Toast;
+
+import com.microsoft.cognitive.textanalytics.model.request.RequestDocIncludeLanguage;
+import com.microsoft.cognitive.textanalytics.model.request.keyphrases_sentiment.TextRequest;
+import com.microsoft.cognitive.textanalytics.model.response.sentiment.SentimentResponse;
+import com.microsoft.cognitive.textanalytics.retrofit.ServiceCall;
+import com.microsoft.cognitive.textanalytics.retrofit.ServiceCallback;
+import com.microsoft.cognitive.textanalytics.retrofit.ServiceRequestClient;
+import com.microsoft.cognitiveservices.speech.SpeechConfig;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import retrofit2.Call;
+import retrofit2.Response;
+
+public class Sentiment {
+    public ServiceRequestClient mRequest;
+    private String SentimentSubscriptionKey="bd009590e8754a29b599a89eb0102f55";
+    private static final String SpeechSubscriptionKey = "d122e91d2df24ce889a13695542564c2";
+    private static final String SpeechRegion = "eastus";
+    private ServiceCall mSentimentCall;
+    private ServiceCallback mSentimentCallback;
+    private TextView mSentimentScore;
+    private SpeechConfig speechConfig;
+    private RequestDocIncludeLanguage mDocIncludeLanguage;
+    private TextRequest mTextIncludeLanguageRequest;               // request for key phrases and sentiment analysis
+    private MicrophoneStream microphoneStream;
+    public void afterTextchange(String textInputString) {
+        Log.d("emotion","afterText Change");
+        mDocIncludeLanguage = new RequestDocIncludeLanguage();
+        mDocIncludeLanguage.setId("1");
+        mDocIncludeLanguage.setLanguage("en");
+        mDocIncludeLanguage.setText(textInputString);
+        List<RequestDocIncludeLanguage> textDocs = new ArrayList<>();
+        textDocs.add(mDocIncludeLanguage);
+        mTextIncludeLanguageRequest = new TextRequest(textDocs);
+    }
+
+    public void getSentimentScore() {
+        Log.d("emotion","getSentimentScore");
+        ServiceCallback mSentimentCallback = new ServiceCallback(mRequest.getRetrofit()) {
+            @Override
+            public void onResponse(Call call, Response response) {
+                super.onResponse(call, response);
+                SentimentResponse sentimentResponse = (SentimentResponse) response.body();
+                Log.d("text", String.valueOf(sentimentResponse.getDocuments()));
+
+                if (response != null && response.isSuccessful()) {
+                    Log.d("emotion", String.valueOf(sentimentResponse.getDocuments().get(0)));
+
+                    mSentimentScore.setText(sentimentResponse.getDocuments().get(0).getScore().toString());
+                }
+//                dismissProgressDialog();
+            }
+
+            @Override
+            public void onFailure(Call call, Throwable t) {
+                super.onFailure(call, t);
+                Log.d("emotion","Fail");
+//                dismissProgressDialog();
+            }
+        };
+
+        try {
+            mSentimentCall = mRequest.getSentimentAsync(mTextIncludeLanguageRequest, mSentimentCallback);
+        } catch (IllegalArgumentException e) {
+//            dismissProgressDialog();
+//            Toast.makeText(MainActivity.this, e.getMessage(), Toast.LENGTH_SHORT).show();
+        }
+    }
+}

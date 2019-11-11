@@ -6,6 +6,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
+    android:background="#000000"
     tools:context=".MainActivity">
 
 
@@ -15,32 +16,27 @@
         android:layout_height="80dp"
         android:layout_alignParentTop="true"
         android:layout_alignParentBottom="true"
-        android:background="@android:color/transparent"
         android:layout_marginTop="10dp"
+
         android:layout_marginBottom="102dp" />
     <ImageView
         android:id="@+id/imageView2"
-        android:layout_width="198dp"
+        android:layout_width="54dp"
         android:layout_height="54dp"
         android:layout_alignParentTop="true"
-        android:layout_alignParentLeft="true"
-        android:visibility="gone" />
+        android:layout_alignParentRight="true"
+        android:visibility="invisible" />
     <Button
         android:id="@+id/btn_takepicture"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_alignParentBottom='true'
-        android:layout_centerHorizontal="true"
+        android:layout_alignParentRight="true"
         android:layout_marginTop="16dp"
         android:layout_marginBottom="16dp"
+        android:layout_below="@+id/imageView2"
+        android:background="#000000"
         android:text="@string/take_picture" />
-<!--    <ImageView-->
-<!--        android:layout_width="250dp"-->
-<!--        android:layout_height="250dp"-->
-<!--        android:src="@mipmap/ic_launcher"-->
-<!--        android:layout_gravity="center_horizontal"-->
-<!--        android:id="@+id/imageView1"-->
-<!--        />-->
+
 
 
     <ImageView
