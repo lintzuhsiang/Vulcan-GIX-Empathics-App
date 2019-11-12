@@ -107,13 +107,19 @@ public class MainActivity extends ActionMenuActivity {
     private Size imageDimension;
     private static final int REQUEST_CAMERA_PERMISSION = 200;
     private Bitmap storedBitmap;
-    private File filename;
+    private File file;
 
     //thread
     private Handler mBackgroundHandler;
     private HandlerThread mBackgroundThread;
+
+    private Handler micBackgroundHandler;
+    private HandlerThread micBackgroundThread;
+
     private Handler timerHandler = new Handler();
     private Runnable runnableCode;
+    private Handler micHandler = new Handler();
+    private Runnable micRunnable;
     private int btn_flag = 0;
 
 
@@ -127,11 +133,10 @@ public class MainActivity extends ActionMenuActivity {
     private final String apiEndpoint = FACE_ENDPOINT;
     private final String subscriptionKey = FACE_SUBSCRIPTION_KEY;
     private final FaceServiceClient faceServiceClient = new FaceServiceRestClient(apiEndpoint, subscriptionKey);
-
+    public String fileDir;
+    public SimpleDateFormat DateFormat = new SimpleDateFormat("yyyyMMdd_HHmmss",Locale.getDefault());
     private MicrophoneStream microphoneStream;
 
-    public MainActivity() throws MalformedURLException {
-    }
 
     private MicrophoneStream createMicrophoneStream() {
         if (microphoneStream != null) {
@@ -151,31 +156,30 @@ public class MainActivity extends ActionMenuActivity {
     private ServiceCallback mSentimentCallback;
     private ServiceRequestClient mRequest;
 
-    private TextView mSentimentScore;
     private SpeechConfig speechConfig;
     private String sentimentResult = "";
 
-    ///HTTP
-    URL url = new URL("http://empathics.azurewebsites.net/health_check");
+
 
     NetworkClient client = new NetworkClient();
     Sentiment sentiment = new Sentiment();
     boolean continuousListeningStarted = false;
+    SpeechRecognizer reco = null;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        textureView = (TextureView) findViewById(R.id.textureView);
-        textureView.setOpaque(true);
+        textureView = findViewById(R.id.textureView);
         assert textureView != null;
         textureView.setSurfaceTextureListener(textureListener);
-
         takePictureButton = findViewById(R.id.btn_takepicture);
         assert takePictureButton != null;
+        fileDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES).getAbsolutePath();
 
-        imageView = (ImageView) findViewById(R.id.imageView);
-        imageViewRedDot = (ImageView) findViewById(R.id.imageView2);
+        imageView = findViewById(R.id.imageView);
+        imageViewRedDot = findViewById(R.id.imageView2);
 
         int imageResource = getResources().getIdentifier("@drawable/reddot", "drawable", getPackageName());
         imageViewRedDot.setImageResource(imageResource);
@@ -184,56 +188,63 @@ public class MainActivity extends ActionMenuActivity {
 
         mRequest = new ServiceRequestClient(SentimentSubscriptionKey);
 
+
         try {
             speechConfig = SpeechConfig.fromSubscription(SpeechSubscriptionKey, SpeechRegion);
         } catch (Exception ex) {
             System.out.println(ex.getMessage());
             return;
         }
-
-
-
-
         takePictureButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                btn_flag ^= 1;
-                //sendHTTP();
-                if (btn_flag == 1) {
+                if(continuousListeningStarted) {
+                    if (reco != null) {
+                        final Future<Void> task = reco.stopContinuousRecognitionAsync();
+                        microphoneStream.stopRecording();
+                        micHandler.removeCallbacks(micRunnable);
+
+                        setOnTaskCompletedListener(task, new OnTaskCompletedListener2<Void>() {
+                            @Override
+                            public void onCompleted(Void result) {
+                                Log.i("mic", "Continuous recognition stopped.");
+                            }
+                        });
+                        continuousListeningStarted = false;
+                    } else {
+                        continuousListeningStarted = false;
+                    }
+
+                    Toast.makeText(MainActivity.this, "Stop Taking Photos", Toast.LENGTH_SHORT).show();
+                    timerHandler.removeCallbacks(runnableCode);
+//                        ss_executorService.shutdown();
+//                        s_executorService.shutdown();
+                    imageViewRedDot.setVisibility(View.INVISIBLE);
+                    imageView.setVisibility(View.INVISIBLE);
+                    Log.d("Handlers", "Stop runnable on main thread");
+
+                }else{
+
+
                     Toast.makeText(MainActivity.this, "Start Taking Photos", Toast.LENGTH_SHORT).show();
-
                     imageViewRedDot.setVisibility(View.VISIBLE);
-                    post_picture();
+                    //post_picture();
+//
 //                    runnableCode = new Runnable() {
-//                        @Override
-//                        public void run() {
-//                            Log.d("Handlers", "Called on main thread");
-//                            cameraCaptureStartTime = System.currentTimeMillis();
-//                            takePicture();
-////                            NetworkClient client = new NetworkClient();
-//                            client.uploadToServer(filename);
-//                            Log.d("emotion",filename.getAbsolutePath());
-////
-//                            timerHandler.postDelayed(this, 2000);
-//                        }
-//                    };
-//                        timerHandler.post(runnableCode);
-
+////                        @Override
+////                        public void run() {
+////                            Log.d("Handlers", "Called on main thread");
+////                            cameraCaptureStartTime = System.currentTimeMillis();
+////                            takePicture();
+//////
+////                            timerHandler.postDelayed(this, 1000);
+////                        }
+////                    };
+////                    timerHandler.post(runnableCode);
                     //////microphone
 //                    if(continuousListeningStarted){
                     post_mic();
 
-
-                } else {
-                    Toast.makeText(MainActivity.this, "Stop Taking Photos", Toast.LENGTH_SHORT).show();
-//                    if (runnableCode != null) {
-                        timerHandler.removeCallbacks(runnableCode);
-                        ss_executorService.shutdown();
-                        s_executorService.shutdown();
-                        imageViewRedDot.setVisibility(View.INVISIBLE);
-                        imageView.setVisibility(View.INVISIBLE);
-                        Log.d("Handlers", "Stop runnable on main thread");
-//                    }
                 }
             }
         });
@@ -241,51 +252,68 @@ public class MainActivity extends ActionMenuActivity {
 
 
     private void post_picture() {
-        RepeatTakePhoto(new OnTaskCompletedListener() {
-            @Override
-            public void onCompleted(Object result) {
-            }
-        });
-//        Future<Bitmap> future_pic = ss_executorService.submit(new Callable<Bitmap>() {
+        runnableCode = new Runnable() {
+                        @Override
+                        public void run() {
+                            Log.d("Handlers", "Called on main thread");
+                            cameraCaptureStartTime = System.currentTimeMillis();
+                            takePicture();
+//
+                            timerHandler.postDelayed(this, 1000);
+                        }
+                    };
+        timerHandler.post(runnableCode);
+
+
+//        RepeatTakePhoto(new OnTaskCompletedListener() {
 //            @Override
-//            public Bitmap call() throws Exception {
-//                Log.d("emotion","in future pic");
-//                takePicture();
-//                return null;
+//            public void onCompleted(Object result) {
 //            }
 //        });
-//        takePictureCompleted(future_pic, new OnTaskCompletedListener<Bitmap>() {
-//            @Override
-//            public void onCompleted(Bitmap taskResult) {
-//                Log.d("emotion","in takePictureCompleted");
-//                client.uploadToServer(filename);
-//            }
-//        });
+//
     }
 
     private void post_mic(){
         speechSentiment();
 
     }
-    private String speechSentiment(){
-        SpeechRecognizer reco = null;
-        AudioConfig audioInput = null;
-
-        if (btn_flag==1) {
-
-            if (reco != null) {
-                final Future<Void> task = reco.stopContinuousRecognitionAsync();
-                setOnTaskCompletedListener(task, new OnTaskCompletedListener2<Void>() {
-                    @Override
-                    public void onCompleted(Void result) {
-                        Log.i("mic", "Continuous recognition stopped.");
-                    }
-                });
-            }
-        }
+    protected void startMicBackgroundThread() {
+        micBackgroundThread = new HandlerThread("Mic Background");
+        micBackgroundThread.start();
+        micBackgroundHandler = new Handler(micBackgroundThread.getLooper());
+    }
+    protected void stopMicBackgroundThread() {
+        micBackgroundThread.quitSafely();
         try {
+            micBackgroundThread.join();
+            micBackgroundThread = null;
+            micBackgroundHandler = null;
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+    private String speechSentiment(){
+
+        AudioConfig audioInput = null;
+        try {
+            Log.i("mic", "Continuous recognition started.");
             audioInput = AudioConfig.fromStreamInput(createMicrophoneStream());
             reco = new SpeechRecognizer(speechConfig, audioInput);
+
+            final String currTime = fileDir + "/" + DateFormat.format(new Date());
+            final boolean isRecording= true;
+            micRunnable = new Runnable() {
+                @Override
+                public void run() {
+                    microphoneStream.saveRecording(isRecording,currTime);
+
+                }
+            };
+//            micHandler.post(micRunnable);
+            Thread audio = new Thread(micRunnable);
+            audio.start();
+            Log.d("mic", String.valueOf(microphoneStream));
+
 
             reco.recognized.addEventListener(new EventHandler<SpeechRecognitionEventArgs>() {
                 @Override
@@ -296,7 +324,8 @@ public class MainActivity extends ActionMenuActivity {
                         sentiment.afterTextchange(s);
                         sentimentResult = sentiment.getSentimentScore();
                         client.uploadScore(sentimentResult);
-                        Log.i("text", "here"+ sentimentResult);
+                        Log.i("text", "here "+ sentimentResult);
+
                     }
                 }
             });
@@ -313,20 +342,7 @@ public class MainActivity extends ActionMenuActivity {
         }
         return sentimentResult;
     }
-//    private <T> void takePictureCompleted(final Future<T> task, final OnTaskCompletedListener<T> listener)
-//    {
-//        T result = null;
-//        try {
-//            result = task.get();
-//
-//        } catch (ExecutionException e) {
-//            e.printStackTrace();
-//        } catch (InterruptedException e) {
-//            e.printStackTrace();
-//        }
-//        listener.onCompleted(result);
-//
-//    }
+
     private <T> void takePictureCompleted() throws ExecutionException, InterruptedException {
         Log.d("takepicture","takePictureCompleted start");
         FutureTask<File> future_pic = new FutureTask<>(new Callable<File>(){
@@ -335,18 +351,13 @@ public class MainActivity extends ActionMenuActivity {
                 newfile = takePicture();
                 return newfile;
             }
-            void done(){
-//                client.uploadToServer(newfile);
-            }
 
         });
         ss_executorService.submit(future_pic);
-
 //        File fileName = future_pic.get();
 //        while(!future_pic.isDone()){
 //        Thread.sleep(50);
 //        }
-//
 //        client.uploadToServer(fileName);
         Log.d("takepicture","takePictureCompleted");
 
@@ -359,24 +370,7 @@ public class MainActivity extends ActionMenuActivity {
             @Override
             public void run() {
                 Log.d("emotion","in future pic0");
-//                Future<File> future_pic = ss_executorService.submit(new Callable<File>() {
-//                    @Override
-//                    public File call() throws Exception {
-//                        Log.d("emotion","in future pic");
-//                        File fileName = takePicture();
-////                        client.uploadToServer(fileName);
-//                        return fileName ;
-//                    }
-//                });
-
-
-//                takePictureCompleted(future_pic, new OnTaskCompletedListener<File>() {
-//                    @Override
-//                    public void onCompleted(File taskResult) {
-//                Log.d("emotion","in takePictureCompleted");
-//                client.uploadToServer(taskResult);
-//                    }
-//                });
+//
 
                 try {
                     takePictureCompleted();
@@ -405,52 +399,11 @@ public class MainActivity extends ActionMenuActivity {
         ss_executorService = Executors.newFixedThreadPool(2);
     }
 
-    //AsyncTask
-//    private void detectBitmap() {
-//        AsyncTask<Bitmap, String, String> detectTask =
-//                new AsyncTask<Bitmap, String, String>() {
-//                    String exceptionMessage = "";
-//                    NetworkClient client = new NetworkClient();
-//
-//                    @Override
-//                    protected String doInBackground(Bitmap... params) {
-//                        client.uploadToServer(filename);
-//                        return null;
-//                    }
-//
-//                    @Override
-//                    protected void onPreExecute() {
-//                        //TODO: show progress dialog
-////                        detectionProgressDialog.show();
-//                    }
-//
-//                    @Override
-//                    protected void onProgressUpdate(String... progress) {
-//                        //TODO: update progress
-////                        detectionProgressDialog.setMessage(progress[0]);
-//                    }
-//
-//                    @Override
-//                    protected void onPostExecute(String response) {
-//                        //TODO: update face frames
-////                        detectionProgressDialog.dismiss();
-//
-//
-//                        if (response == null) return;
-////
-////                        imageView.setImageResource(showFaceResult(result));//,imageResource));
-////                        imageView.setVisibility(View.VISIBLE);
-//                    }
-//                };
-//
-//        detectTask.execute(storedBitmap);
-//    }
 
 
     TextureView.SurfaceTextureListener textureListener = new TextureView.SurfaceTextureListener() {
         @Override
         public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
-            //open your camera here
             openCamera();
         }
         @Override
@@ -504,7 +457,6 @@ public class MainActivity extends ActionMenuActivity {
             Log.e(TAG, "cameraDevice is null");
             return null;
         }
-        File fileName=null;
         CameraManager manager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
         try {
             CameraCharacteristics characteristics = manager.getCameraCharacteristics(cameraDevice.getId());
@@ -536,9 +488,9 @@ public class MainActivity extends ActionMenuActivity {
 
             SimpleDateFormat formatter = new SimpleDateFormat("yyyy_MM_dd_HH_mm_ss", Locale.US);
             Date now = new Date();
-            filename = new File(getExternalFilesDir(Environment.DIRECTORY_PICTURES)+"/"+formatter.format(now)+".jpg");
 
-            fileName = new File(getExternalFilesDir(Environment.DIRECTORY_PICTURES)+"/"+formatter.format(now)+".jpg");
+            file = new File(getExternalFilesDir(Environment.DIRECTORY_PICTURES)+"/"+formatter.format(now)+".jpg");
+
 
             ImageReader.OnImageAvailableListener readerListener = new ImageReader.OnImageAvailableListener() {
                 @Override
@@ -562,8 +514,6 @@ public class MainActivity extends ActionMenuActivity {
                     } finally {
                         if (image != null) {
                             image.close();
-                            client.uploadImage(filename);
-
                             Log.d("emotion","image close");
                         }
                     }
@@ -577,14 +527,13 @@ public class MainActivity extends ActionMenuActivity {
                     mat.postRotate(270);
                     storedBitmap = Bitmap.createBitmap(storedBitmap, 0, 0, storedBitmap.getWidth(), storedBitmap.getHeight(), mat, true);
                     try{
-                    output = new FileOutputStream(filename);
+                    output = new FileOutputStream(file);
                     storedBitmap.compress(Bitmap.CompressFormat.JPEG, 100, output);
 //                    detectAndFrame(storedBitmap);
                     } finally {
                         if (null != output) {
-//                            NetworkClient client = new NetworkClient();
-                            Log.d("emotion",filename.getAbsolutePath());
-//                            client.uploadToServer(filename);
+                            Log.d("emotion",file.getAbsolutePath());
+                            client.uploadImage(file);
 //                            detectAndFrame(storedBitmap);
                             output.flush();
                             output.close();
@@ -601,7 +550,6 @@ public class MainActivity extends ActionMenuActivity {
                 public void onCaptureCompleted(CameraCaptureSession session, CaptureRequest request, TotalCaptureResult result) {
                     super.onCaptureCompleted(session, request, result);
                     Log.d("emotion",String.format("takePicture end %s",cameraCaptureStartTime - System.currentTimeMillis()));
-//                    Toast.makeText(MainActivity.this, "Saved:" + file, Toast.LENGTH_SHORT).show();
 //                    createCameraPreview();
                 }
             };
@@ -621,54 +569,7 @@ public class MainActivity extends ActionMenuActivity {
         } catch (CameraAccessException e) {
             e.printStackTrace();
         }
-//        return storedBitmap;
-        return filename;
-    }
-    protected void createCameraPreview() {
-        try {
-            int width = 640;
-            int height = 480;
-                //zoom in and out setting
-//            float maxzoom = 10;
-//            int zoom_level = 5;  //need to set finger event
-//            int minW = (int) (width / maxzoom);
-//            int minH = (int) (height / maxzoom);
-//            int difW = width - minW;
-//            int difH = height - minH;
-//            int cropW = difW /100 *(int)zoom_level;
-//            int cropH = difH /100 *(int)zoom_level;
-//
-//            cropW -= cropW & 3;
-//            cropH -= cropH & 3;
-//            Rect zoom = new Rect(cropW, cropH, width - cropW, height - cropH);
-
-            SurfaceTexture texture = textureView.getSurfaceTexture();
-            assert texture != null;
-            texture.setDefaultBufferSize(imageDimension.getWidth(), imageDimension.getHeight());
-            Surface surface = new Surface(texture);
-            captureRequestBuilder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
-            captureRequestBuilder.addTarget(surface);
-//            captureRequestBuilder.set(CaptureRequest.SCALER_CROP_REGION,zoom );
-
-            cameraDevice.createCaptureSession(Arrays.asList(surface), new CameraCaptureSession.StateCallback(){
-                @Override
-                public void onConfigured(@NonNull CameraCaptureSession cameraCaptureSession) {
-                    //The camera is already closed
-                    if (null == cameraDevice) {
-                        return;
-                    }
-                    // When the session is ready, we start displaying the preview.
-                    cameraCaptureSessions = cameraCaptureSession;
-                    updatePreview();
-                }
-                @Override
-                public void onConfigureFailed(@NonNull CameraCaptureSession cameraCaptureSession) {
-//                    Toast.makeText(MainActivity.this, "Configuration change", Toast.LENGTH_SHORT).show();
-                }
-            }, null);
-        } catch (CameraAccessException e) {
-            e.printStackTrace();
-        }
+        return file;
     }
     private void openCamera() {
         CameraManager manager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
@@ -684,17 +585,6 @@ public class MainActivity extends ActionMenuActivity {
                 return;
             }
             manager.openCamera(cameraId, stateCallback, null);
-        } catch (CameraAccessException e) {
-            e.printStackTrace();
-        }
-    }
-    protected void updatePreview() {
-        if(null == cameraDevice) {
-            Log.e(TAG, "updatePreview error, return");
-        }
-        captureRequestBuilder.set(CaptureRequest.CONTROL_MODE, CameraMetadata.CONTROL_MODE_AUTO);
-        try {
-            cameraCaptureSessions.setRepeatingRequest(captureRequestBuilder.build(), null, mBackgroundHandler);
         } catch (CameraAccessException e) {
             e.printStackTrace();
         }

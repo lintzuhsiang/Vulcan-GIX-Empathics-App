@@ -19,9 +19,11 @@ import retrofit2.http.GET;
 import retrofit2.http.Multipart;
 import retrofit2.http.POST;
 import retrofit2.http.Part;
+import retrofit2.http.Body;
 
 public class NetworkClient {
-    private static final String BASE_URL = "http://empathics.azurewebsites.net";
+//    private static final String BASE_URL = "http://empathics.azurewebsites.net";
+    private static final String BASE_URL =  "http://52.183.116.154:8000";
     private static Retrofit retrofit;
     public static Retrofit getRetrofitClient(NetworkClient context) {
         if (retrofit == null) {
@@ -41,7 +43,7 @@ public class NetworkClient {
     Call<ResponseBody> uploadScore();
     @Multipart
     @POST("/post_pic")
-    Call<ResponseBody> uploadImage(@Part MultipartBody.Part file, @Part("image") RequestBody requestBody);
+    Call<ResponseBody> uploadImage(@Part MultipartBody.Part photo, @Part("description") RequestBody description);
 
     }
 
@@ -51,20 +53,21 @@ public class NetworkClient {
         UploadAPIs uploadAPIs = retrofit.create(UploadAPIs.class);
 
 //        File file = new File(filePath);
-        Log.d("client","before fileReqBody");
 
-        RequestBody fileReqBody = RequestBody.create(MediaType.parse("image/*"),file.getAbsoluteFile());
-        MultipartBody.Part part = MultipartBody.Part.createFormData("image",file.getName());
-//        RequestBody fileReqBody = RequestBody.create(MediaType.parse("image/*")," /storage/emulated/0/Android/data/com.example.myapplication/files/Pictures/2019_11_10_10_25_16.jpg");
-//        MultipartBody.Part part = MultipartBody.Part.createFormData("image","2019_11_10_10_25_16.jpg",fileReqBody);
+        RequestBody fileReqBody = RequestBody.create(MediaType.parse("image/*"),file);
+        MultipartBody.Part part = MultipartBody.Part.createFormData("image",file.getName(),fileReqBody);
+
+//        RequestBody fileReqBody = RequestBody.create(MediaType.parse("image/*")," /storage/emulated/0/Android/data/com.example.myapplication/files/Pictures/2019_10_30_19_46_42.jpg");
+//        MultipartBody.Part part = MultipartBody.Part.createFormData("image","2019_10_30_19_46_42.jpg");
+
         RequestBody description = RequestBody.create(MediaType.parse("text/plain"),"image-type");
-        Log.d("client","after fileReqBody");
 
-        Call call = uploadAPIs.uploadImage(part,fileReqBody);
+        Call call = uploadAPIs.uploadImage(part,description);
         Log.d("client","upLoadToServer");
         call.enqueue(new Callback() {
             @Override
             public void onResponse(Call call, Response response) {
+
 //                NetworkClient client = (NetworkClient) response.body();
                 Log.d("client", String.valueOf(response.body()));
                 Log.d("client", String.valueOf(response.code()));
@@ -88,7 +91,7 @@ public class NetworkClient {
         call.enqueue(new Callback(){
             @Override
             public void onResponse(Call call,Response response){
-                Log.d("client", String.valueOf(response.body()));
+//                Log.d("client", response.body().string());
                 Log.d("client", String.valueOf(response.code()));
             }
             @Override

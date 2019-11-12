@@ -11,6 +11,10 @@ import android.util.Log;
 
 import com.microsoft.cognitiveservices.speech.audio.PullAudioInputStreamCallback;
 
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+
 /**
  * MicrophoneStream exposes the Android Microphone as an PullAudioInputStreamCallback
  * to be consumed by the Speech SDK.
@@ -21,15 +25,12 @@ public class MicrophoneStream extends PullAudioInputStreamCallback {
 //    private final AudioStreamFormat format;
     private AudioRecord recorder;
     static public int  bufferSizeInBytes;
-    public MicrophoneStream() {
+    boolean isRecording;
 
+    public MicrophoneStream() {
 //        this.format = AudioStreamFormat.getWaveFormatPCM(SAMPLE_RATE, (short)16, (short)1);
         this.initMic();
     }
-
-//    public AudioStreamFormat getFormat() {
-//        return this.format;
-//    }
 
     @Override
     public int read(byte[] bytes) {
@@ -44,25 +45,63 @@ public class MicrophoneStream extends PullAudioInputStreamCallback {
     }
 
     private void initMic() {
-        // Note: currently, the Speech SDK support 16 kHz sample rate, 16 bit samples, mono (single-channel) only.
-//        AudioFormat af = new AudioFormat.Builder()
-//                .setSampleRate(SAMPLE_RATE)
-//                .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-//                .setChannelMask(AudioFormat.CHANNEL_IN_MONO)
-//                .build();
-//        this.recorder = new AudioRecord.Builder()
-//                .setAudioSource(MediaRecorder.AudioSource.VOICE_RECOGNITION)
-//                .setAudioFormat(af)
-//                .build();
 
-        bufferSizeInBytes = AudioRecord.getMinBufferSize(SAMPLE_RATE,AudioFormat.CHANNEL_IN_MONO,AudioFormat.ENCODING_PCM_16BIT);
-        Log.d("mic", String.valueOf( bufferSizeInBytes));
-        this.recorder = new AudioRecord(MediaRecorder.AudioSource.VOICE_RECOGNITION,16000,AudioFormat.CHANNEL_IN_MONO,AudioFormat.ENCODING_PCM_16BIT, bufferSizeInBytes);
+        this.bufferSizeInBytes = AudioRecord.getMinBufferSize(SAMPLE_RATE,AudioFormat.CHANNEL_IN_MONO,AudioFormat.ENCODING_PCM_16BIT);
+        Log.d("mic", "initMic");
+        this.recorder = new AudioRecord(MediaRecorder.AudioSource.VOICE_RECOGNITION,16000,AudioFormat.CHANNEL_IN_MONO,AudioFormat.ENCODING_PCM_16BIT, this.bufferSizeInBytes);
         this.recorder.startRecording();
 
     }
 
-    public void startRecording(){
+    public void saveRecording(boolean isRecording,final String currTime){
+        Log.d("mic",currTime);
+        Log.d("mic", "saveRecording");
+        Log.d("mic", String.valueOf(isRecording));
 
+        final byte data[] = new byte[this.bufferSizeInBytes];
+        this.isRecording = isRecording;
+
+
+        FileOutputStream stream = null;
+        try{
+            stream = new FileOutputStream(currTime);
+        }catch(FileNotFoundException e){
+            e.printStackTrace();
+        }
+
+        if (stream != null){
+            while(this.isRecording){
+                int read = recorder.read(data, 0, this.bufferSizeInBytes);
+                if(AudioRecord.ERROR_INVALID_OPERATION != read){
+                    try{
+                        stream.write(data);
+                        Log.d("mic","save audio");
+                    }catch (IOException e){
+                        e.printStackTrace();
+                        Log.d("mic","save error");
+                    }
+                }
+            }
+    try{
+        stream.close();
+    }catch(IOException e){
+        e.printStackTrace();
+    }
+        }
+
+           // }
+         Log.d("mic","after runnable");
+
+
+    }
+
+    public void stopRecording(){
+        this.isRecording = false;
+        Log.d("mic", "stopRecording");
+        Log.d("mic", String.valueOf(isRecording));
+
+        recorder.stop();
+        recorder.release();
+        Log.d("mic","stop recording");
     }
 }

@@ -26,7 +26,6 @@ public class Sentiment {
     private static final String SpeechRegion = "eastus";
     private ServiceCall mSentimentCall;
     private ServiceCallback mSentimentCallback;
-    private TextView mSentimentScore;
     private SpeechConfig speechConfig;
     private RequestDocIncludeLanguage mDocIncludeLanguage;
     private TextRequest mTextIncludeLanguageRequest;               // request for key phrases and sentiment analysis
@@ -56,16 +55,13 @@ public class Sentiment {
                 if (response != null && response.isSuccessful()) {
                     Log.d("emotion", String.valueOf(sentimentResponse.getDocuments().get(0).getScore()));
                     sentimentResult = sentimentResponse.getDocuments().get(0).getScore().toString();
-//                    mSentimentScore.setText(sentimentResponse.getDocuments().get(0).getScore().toString());
                 }
-//                dismissProgressDialog();
             }
 
             @Override
             public void onFailure(Call call, Throwable t) {
                 super.onFailure(call, t);
                 Log.d("emotion","Fail");
-//                dismissProgressDialog();
             }
         };
 
@@ -74,8 +70,6 @@ public class Sentiment {
         } catch (IllegalArgumentException e) {
             Log.d("emotion","Fail in catch");
             System.out.println(e);
-//            dismissProgressDialog();
-//            Toast.makeText(MainActivity.this, e.getMessage(), Toast.LENGTH_SHORT).show();
         }
         return sentimentResult;
     }
