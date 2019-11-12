@@ -37,12 +37,15 @@ public class NetworkClient {
 
     }
     public interface UploadAPIs{
+    @GET("/health_check")
+    Call<ResponseBody> uploadScore();
     @Multipart
     @POST("/post_pic")
     Call<ResponseBody> uploadImage(@Part MultipartBody.Part file, @Part("image") RequestBody requestBody);
+
     }
 
-    public void uploadToServer(File file){
+    public void uploadImage(File file){
         Retrofit retrofit = NetworkClient.getRetrofitClient(this);
 
         UploadAPIs uploadAPIs = retrofit.create(UploadAPIs.class);
@@ -73,6 +76,26 @@ public class NetworkClient {
                 t.printStackTrace();
 
             }
+        });
+
+    }
+
+    public void uploadScore(String score){
+        Retrofit retrofit = NetworkClient.getRetrofitClient(this);
+        UploadAPIs uploadAPIs = retrofit.create(UploadAPIs.class);
+//        RequestBody ReqBody = RequestBody.create()
+        Call call = uploadAPIs.uploadScore();
+        call.enqueue(new Callback(){
+            @Override
+            public void onResponse(Call call,Response response){
+                Log.d("client", String.valueOf(response.body()));
+                Log.d("client", String.valueOf(response.code()));
+            }
+            @Override
+            public void onFailure(Call call, Throwable t){
+                t.printStackTrace();
+            }
+
         });
 
     }

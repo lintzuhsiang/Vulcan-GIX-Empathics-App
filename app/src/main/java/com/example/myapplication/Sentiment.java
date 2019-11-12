@@ -31,6 +31,7 @@ public class Sentiment {
     private RequestDocIncludeLanguage mDocIncludeLanguage;
     private TextRequest mTextIncludeLanguageRequest;               // request for key phrases and sentiment analysis
     private MicrophoneStream microphoneStream;
+    public String sentimentResult = "";
     public void afterTextchange(String textInputString) {
         Log.d("emotion","afterText Change");
         mDocIncludeLanguage = new RequestDocIncludeLanguage();
@@ -41,8 +42,9 @@ public class Sentiment {
         textDocs.add(mDocIncludeLanguage);
         mTextIncludeLanguageRequest = new TextRequest(textDocs);
     }
-
-    public void getSentimentScore() {
+//java native interface
+    public String getSentimentScore() {
+        mRequest = new ServiceRequestClient(SentimentSubscriptionKey);
         Log.d("emotion","getSentimentScore");
         ServiceCallback mSentimentCallback = new ServiceCallback(mRequest.getRetrofit()) {
             @Override
@@ -52,9 +54,9 @@ public class Sentiment {
                 Log.d("text", String.valueOf(sentimentResponse.getDocuments()));
 
                 if (response != null && response.isSuccessful()) {
-                    Log.d("emotion", String.valueOf(sentimentResponse.getDocuments().get(0)));
-
-                    mSentimentScore.setText(sentimentResponse.getDocuments().get(0).getScore().toString());
+                    Log.d("emotion", String.valueOf(sentimentResponse.getDocuments().get(0).getScore()));
+                    sentimentResult = sentimentResponse.getDocuments().get(0).getScore().toString();
+//                    mSentimentScore.setText(sentimentResponse.getDocuments().get(0).getScore().toString());
                 }
 //                dismissProgressDialog();
             }
@@ -70,8 +72,11 @@ public class Sentiment {
         try {
             mSentimentCall = mRequest.getSentimentAsync(mTextIncludeLanguageRequest, mSentimentCallback);
         } catch (IllegalArgumentException e) {
+            Log.d("emotion","Fail in catch");
+            System.out.println(e);
 //            dismissProgressDialog();
 //            Toast.makeText(MainActivity.this, e.getMessage(), Toast.LENGTH_SHORT).show();
         }
+        return sentimentResult;
     }
 }

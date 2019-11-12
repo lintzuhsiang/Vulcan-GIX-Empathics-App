@@ -58,9 +58,11 @@ public class MicrophoneStream extends PullAudioInputStreamCallback {
         bufferSizeInBytes = AudioRecord.getMinBufferSize(SAMPLE_RATE,AudioFormat.CHANNEL_IN_MONO,AudioFormat.ENCODING_PCM_16BIT);
         Log.d("mic", String.valueOf( bufferSizeInBytes));
         this.recorder = new AudioRecord(MediaRecorder.AudioSource.VOICE_RECOGNITION,16000,AudioFormat.CHANNEL_IN_MONO,AudioFormat.ENCODING_PCM_16BIT, bufferSizeInBytes);
-        Log.d("emotion","ge124hah");
         this.recorder.startRecording();
-        Log.d("emotion","gqgwgqgqw145gwg");
+
+    }
+
+    public void startRecording(){
 
     }
 }

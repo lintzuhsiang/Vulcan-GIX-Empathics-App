@@ -54,6 +54,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.FutureTask;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
@@ -152,7 +153,7 @@ public class MainActivity extends ActionMenuActivity {
 
     private TextView mSentimentScore;
     private SpeechConfig speechConfig;
-
+    private String sentimentResult = "";
 
     ///HTTP
     URL url = new URL("http://empathics.azurewebsites.net/health_check");
@@ -194,9 +195,6 @@ public class MainActivity extends ActionMenuActivity {
 
 
         takePictureButton.setOnClickListener(new View.OnClickListener() {
-
-
-
             @Override
             public void onClick(View v) {
                 btn_flag ^= 1;
@@ -223,12 +221,9 @@ public class MainActivity extends ActionMenuActivity {
 
                     //////microphone
 //                    if(continuousListeningStarted){
-                        post_mic();
-//                    }
+                    post_mic();
 
 
-
-//
                 } else {
                     Toast.makeText(MainActivity.this, "Stop Taking Photos", Toast.LENGTH_SHORT).show();
 //                    if (runnableCode != null) {
@@ -242,8 +237,6 @@ public class MainActivity extends ActionMenuActivity {
                 }
             }
         });
-
-
     }
 
 
@@ -270,13 +263,15 @@ public class MainActivity extends ActionMenuActivity {
 //        });
     }
 
-
     private void post_mic(){
+        speechSentiment();
+
+    }
+    private String speechSentiment(){
         SpeechRecognizer reco = null;
         AudioConfig audioInput = null;
-        String buttonText = "";
-        ArrayList<String> content = new ArrayList<>();
-        if (continuousListeningStarted) {
+
+        if (btn_flag==1) {
 
             if (reco != null) {
                 final Future<Void> task = reco.stopContinuousRecognitionAsync();
@@ -287,25 +282,21 @@ public class MainActivity extends ActionMenuActivity {
                     }
                 });
             }
-            return;
-
         }
         try {
-
-            // audioInput = AudioConfig.fromDefaultMicrophoneInput();
             audioInput = AudioConfig.fromStreamInput(createMicrophoneStream());
             reco = new SpeechRecognizer(speechConfig, audioInput);
-
 
             reco.recognized.addEventListener(new EventHandler<SpeechRecognitionEventArgs>() {
                 @Override
                 public void onEvent(Object o, SpeechRecognitionEventArgs speechRecognitionResultEventArgs) {
                     final String s = speechRecognitionResultEventArgs.getResult().getText();
                     Log.i("text", "Final result received: " + s);
-                    Log.i("text", String.valueOf(s.length()));
                     if (s.length() > 10) {
                         sentiment.afterTextchange(s);
-                        sentiment.getSentimentScore();
+                        sentimentResult = sentiment.getSentimentScore();
+                        client.uploadScore(sentimentResult);
+                        Log.i("text", "here"+ sentimentResult);
                     }
                 }
             });
@@ -319,21 +310,45 @@ public class MainActivity extends ActionMenuActivity {
             });
         } catch (Exception ex) {
             System.out.println(ex.getMessage());
-//                    displayException(ex);
         }
+        return sentimentResult;
     }
-    private <T> void takePictureCompleted(final Future<T> task, final OnTaskCompletedListener<T> listener)
-    {
-        T result = null;
-        try {
-            result = task.get();
-            Log.d("here", String.valueOf(result));
-        } catch (ExecutionException e) {
-            e.printStackTrace();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-        listener.onCompleted(result);
+//    private <T> void takePictureCompleted(final Future<T> task, final OnTaskCompletedListener<T> listener)
+//    {
+//        T result = null;
+//        try {
+//            result = task.get();
+//
+//        } catch (ExecutionException e) {
+//            e.printStackTrace();
+//        } catch (InterruptedException e) {
+//            e.printStackTrace();
+//        }
+//        listener.onCompleted(result);
+//
+//    }
+    private <T> void takePictureCompleted() throws ExecutionException, InterruptedException {
+        Log.d("takepicture","takePictureCompleted start");
+        FutureTask<File> future_pic = new FutureTask<>(new Callable<File>(){
+            File newfile;
+            public File call(){
+                newfile = takePicture();
+                return newfile;
+            }
+            void done(){
+//                client.uploadToServer(newfile);
+            }
+
+        });
+        ss_executorService.submit(future_pic);
+
+//        File fileName = future_pic.get();
+//        while(!future_pic.isDone()){
+//        Thread.sleep(50);
+//        }
+//
+//        client.uploadToServer(fileName);
+        Log.d("takepicture","takePictureCompleted");
 
     }
 
@@ -344,21 +359,32 @@ public class MainActivity extends ActionMenuActivity {
             @Override
             public void run() {
                 Log.d("emotion","in future pic0");
-                Future<File> future_pic = ss_executorService.submit(new Callable<File>() {
-                    @Override
-                    public File call() throws Exception {
-                        Log.d("emotion","in future pic");
-                        File fileName = takePicture();
-                        return fileName ;
-                    }
-                });
-                takePictureCompleted(future_pic, new OnTaskCompletedListener<File>() {
-                    @Override
-                    public void onCompleted(File taskResult) {
-                Log.d("emotion","in takePictureCompleted");
-                client.uploadToServer(taskResult);
-                    }
-                });
+//                Future<File> future_pic = ss_executorService.submit(new Callable<File>() {
+//                    @Override
+//                    public File call() throws Exception {
+//                        Log.d("emotion","in future pic");
+//                        File fileName = takePicture();
+////                        client.uploadToServer(fileName);
+//                        return fileName ;
+//                    }
+//                });
+
+
+//                takePictureCompleted(future_pic, new OnTaskCompletedListener<File>() {
+//                    @Override
+//                    public void onCompleted(File taskResult) {
+//                Log.d("emotion","in takePictureCompleted");
+//                client.uploadToServer(taskResult);
+//                    }
+//                });
+
+                try {
+                    takePictureCompleted();
+                } catch (ExecutionException e) {
+                    e.printStackTrace();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
             }
         },0,1, TimeUnit.SECONDS);
     }
@@ -380,45 +406,45 @@ public class MainActivity extends ActionMenuActivity {
     }
 
     //AsyncTask
-    private void detectBitmap() {
-        AsyncTask<Bitmap, String, String> detectTask =
-                new AsyncTask<Bitmap, String, String>() {
-                    String exceptionMessage = "";
-                    NetworkClient client = new NetworkClient();
-
-                    @Override
-                    protected String doInBackground(Bitmap... params) {
-                        client.uploadToServer(filename);
-                        return null;
-                    }
-
-                    @Override
-                    protected void onPreExecute() {
-                        //TODO: show progress dialog
-//                        detectionProgressDialog.show();
-                    }
-
-                    @Override
-                    protected void onProgressUpdate(String... progress) {
-                        //TODO: update progress
-//                        detectionProgressDialog.setMessage(progress[0]);
-                    }
-
-                    @Override
-                    protected void onPostExecute(String response) {
-                        //TODO: update face frames
-//                        detectionProgressDialog.dismiss();
-
-
-                        if (response == null) return;
+//    private void detectBitmap() {
+//        AsyncTask<Bitmap, String, String> detectTask =
+//                new AsyncTask<Bitmap, String, String>() {
+//                    String exceptionMessage = "";
+//                    NetworkClient client = new NetworkClient();
 //
-//                        imageView.setImageResource(showFaceResult(result));//,imageResource));
-//                        imageView.setVisibility(View.VISIBLE);
-                    }
-                };
-
-        detectTask.execute(storedBitmap);
-    }
+//                    @Override
+//                    protected String doInBackground(Bitmap... params) {
+//                        client.uploadToServer(filename);
+//                        return null;
+//                    }
+//
+//                    @Override
+//                    protected void onPreExecute() {
+//                        //TODO: show progress dialog
+////                        detectionProgressDialog.show();
+//                    }
+//
+//                    @Override
+//                    protected void onProgressUpdate(String... progress) {
+//                        //TODO: update progress
+////                        detectionProgressDialog.setMessage(progress[0]);
+//                    }
+//
+//                    @Override
+//                    protected void onPostExecute(String response) {
+//                        //TODO: update face frames
+////                        detectionProgressDialog.dismiss();
+//
+//
+//                        if (response == null) return;
+////
+////                        imageView.setImageResource(showFaceResult(result));//,imageResource));
+////                        imageView.setVisibility(View.VISIBLE);
+//                    }
+//                };
+//
+//        detectTask.execute(storedBitmap);
+//    }
 
 
     TextureView.SurfaceTextureListener textureListener = new TextureView.SurfaceTextureListener() {
@@ -536,6 +562,8 @@ public class MainActivity extends ActionMenuActivity {
                     } finally {
                         if (image != null) {
                             image.close();
+                            client.uploadImage(filename);
+
                             Log.d("emotion","image close");
                         }
                     }
