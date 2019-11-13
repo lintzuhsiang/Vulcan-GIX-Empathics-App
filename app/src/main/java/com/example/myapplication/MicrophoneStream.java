@@ -57,7 +57,7 @@ public class MicrophoneStream extends PullAudioInputStreamCallback {
         Log.d("mic",currTime);
         Log.d("mic", "saveRecording");
         Log.d("mic", String.valueOf(isRecording));
-
+        long audiotime = System.currentTimeMillis();
         final byte data[] = new byte[this.bufferSizeInBytes];
         this.isRecording = isRecording;
 
@@ -72,6 +72,7 @@ public class MicrophoneStream extends PullAudioInputStreamCallback {
         if (stream != null){
             while(this.isRecording){
                 int read = recorder.read(data, 0, this.bufferSizeInBytes);
+                Log.d("read", String.valueOf(read));
                 if(AudioRecord.ERROR_INVALID_OPERATION != read){
                     try{
                         stream.write(data);
@@ -88,11 +89,7 @@ public class MicrophoneStream extends PullAudioInputStreamCallback {
         e.printStackTrace();
     }
         }
-
-           // }
          Log.d("mic","after runnable");
-
-
     }
 
     public void stopRecording(){

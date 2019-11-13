@@ -4,6 +4,7 @@ import android.content.Context;
 import android.util.Log;
 
 import java.io.File;
+import java.io.IOException;
 
 import okhttp3.MediaType;
 import okhttp3.MultipartBody;
@@ -22,8 +23,8 @@ import retrofit2.http.Part;
 import retrofit2.http.Body;
 
 public class NetworkClient {
-//    private static final String BASE_URL = "http://empathics.azurewebsites.net";
-    private static final String BASE_URL =  "http://52.183.116.154:8000";
+    private static final String BASE_URL = "http://empathics.azurewebsites.net";
+//    private static final String BASE_URL =  "http://20.190.61.212:8000";
     private static Retrofit retrofit;
     public static Retrofit getRetrofitClient(NetworkClient context) {
         if (retrofit == null) {
@@ -52,7 +53,6 @@ public class NetworkClient {
 
         UploadAPIs uploadAPIs = retrofit.create(UploadAPIs.class);
 
-//        File file = new File(filePath);
 
         RequestBody fileReqBody = RequestBody.create(MediaType.parse("image/*"),file);
         MultipartBody.Part part = MultipartBody.Part.createFormData("image",file.getName(),fileReqBody);
@@ -64,13 +64,24 @@ public class NetworkClient {
 
         Call call = uploadAPIs.uploadImage(part,description);
         Log.d("client","upLoadToServer");
-        call.enqueue(new Callback() {
+        call.enqueue(new Callback<ResponseBody>() {
             @Override
-            public void onResponse(Call call, Response response) {
+            public void onResponse(Call<ResponseBody> call, Response<ResponseBody> response) {
 
-//                NetworkClient client = (NetworkClient) response.body();
-                Log.d("client", String.valueOf(response.body()));
-                Log.d("client", String.valueOf(response.code()));
+//              Response s = response.body();
+//                assert s != null;
+//                Log.d("client", String.valueOf(Response.success(response).body().raw().string()));
+                try {
+                    Log.d("client", String.valueOf(response.body().string()));
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+                //                if(s!=null){
+//                    System.out.println(s.substring(0));
+//                }
+//                Log.d("client", String.valueOf(s.substring(0)));
+//                Log.d("client", String.valueOf(Response.success(response)));
+//                Log.d("client", String.valueOf(response.code()));
 
             }
 

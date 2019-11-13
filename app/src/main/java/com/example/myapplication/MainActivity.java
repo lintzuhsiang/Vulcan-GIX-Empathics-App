@@ -154,7 +154,7 @@ public class MainActivity extends ActionMenuActivity {
     private static final String SpeechRegion = "eastus";
     private ServiceCall mSentimentCall;
     private ServiceCallback mSentimentCallback;
-    private ServiceRequestClient mRequest;
+//    private ServiceRequestClient mRequest;
 
     private SpeechConfig speechConfig;
     private String sentimentResult = "";
@@ -186,7 +186,7 @@ public class MainActivity extends ActionMenuActivity {
 
         Toast.makeText(MainActivity.this, "Tap to take photos.", Toast.LENGTH_LONG).show();
 
-        mRequest = new ServiceRequestClient(SentimentSubscriptionKey);
+//        mRequest = new ServiceRequestClient(SentimentSubscriptionKey);
 
 
         try {
@@ -228,7 +228,7 @@ public class MainActivity extends ActionMenuActivity {
 
                     Toast.makeText(MainActivity.this, "Start Taking Photos", Toast.LENGTH_SHORT).show();
                     imageViewRedDot.setVisibility(View.VISIBLE);
-                    //post_picture();
+                    post_picture();
 //
 //                    runnableCode = new Runnable() {
 ////                        @Override
@@ -243,7 +243,7 @@ public class MainActivity extends ActionMenuActivity {
 ////                    timerHandler.post(runnableCode);
                     //////microphone
 //                    if(continuousListeningStarted){
-                    post_mic();
+                    //post_mic();
 
                 }
             }
