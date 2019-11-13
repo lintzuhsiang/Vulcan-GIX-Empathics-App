@@ -120,8 +120,6 @@ public class MainActivity extends ActionMenuActivity {
     private Runnable runnableCode;
     private Handler micHandler = new Handler();
     private Runnable micRunnable;
-    private int btn_flag = 0;
-
 
     //timestamp
     protected long cameraCaptureStartTime = 0;
@@ -149,16 +147,12 @@ public class MainActivity extends ActionMenuActivity {
     }
 
     //Speech-to-Text and Text Sentiment API
-    private String SentimentSubscriptionKey = "bd009590e8754a29b599a89eb0102f55";
     private static final String SpeechSubscriptionKey = "d122e91d2df24ce889a13695542564c2";
     private static final String SpeechRegion = "eastus";
     private ServiceCall mSentimentCall;
-    private ServiceCallback mSentimentCallback;
-//    private ServiceRequestClient mRequest;
 
     private SpeechConfig speechConfig;
     private String sentimentResult = "";
-
 
 
     NetworkClient client = new NetworkClient();
@@ -228,22 +222,10 @@ public class MainActivity extends ActionMenuActivity {
 
                     Toast.makeText(MainActivity.this, "Start Taking Photos", Toast.LENGTH_SHORT).show();
                     imageViewRedDot.setVisibility(View.VISIBLE);
-                    post_picture();
-//
-//                    runnableCode = new Runnable() {
-////                        @Override
-////                        public void run() {
-////                            Log.d("Handlers", "Called on main thread");
-////                            cameraCaptureStartTime = System.currentTimeMillis();
-////                            takePicture();
-//////
-////                            timerHandler.postDelayed(this, 1000);
-////                        }
-////                    };
-////                    timerHandler.post(runnableCode);
+                    //post_picture();
+
                     //////microphone
-//                    if(continuousListeningStarted){
-                    //post_mic();
+                    post_mic();
 
                 }
             }
@@ -275,8 +257,29 @@ public class MainActivity extends ActionMenuActivity {
 
     private void post_mic(){
         speechSentiment();
-
     }
+
+    private <T> void setOnTaskCompletedListener(final Future<T> task, final OnTaskCompletedListener2<T> listener) {
+        ms_executorService.submit(new Callable<Object>() {
+            @Override
+            public Object call() throws Exception {
+                T result = task.get();
+                listener.onCompleted(result);
+                return null;
+            }
+        });
+    }
+
+    private interface OnTaskCompletedListener2<T> {
+        void onCompleted(T taskResult);
+    }
+
+    private static ExecutorService ms_executorService;
+
+    static {
+        ms_executorService = Executors.newCachedThreadPool();
+    }
+
     protected void startMicBackgroundThread() {
         micBackgroundThread = new HandlerThread("Mic Background");
         micBackgroundThread.start();
@@ -305,11 +308,14 @@ public class MainActivity extends ActionMenuActivity {
             micRunnable = new Runnable() {
                 @Override
                 public void run() {
-                    microphoneStream.saveRecording(isRecording,currTime);
+                    try {
+                        microphoneStream.startRecording(isRecording,currTime);
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
 
                 }
             };
-//            micHandler.post(micRunnable);
             Thread audio = new Thread(micRunnable);
             audio.start();
             Log.d("mic", String.valueOf(microphoneStream));
@@ -329,14 +335,15 @@ public class MainActivity extends ActionMenuActivity {
                     }
                 }
             });
-
-            final Future<Void> task = reco.startContinuousRecognitionAsync();
-            setOnTaskCompletedListener(task, new OnTaskCompletedListener2<Void>() {
-                @Override
-                public void onCompleted(Void result) {
                     continuousListeningStarted = true;
-                }
-            });
+//
+//            final Future<Void> task = reco.startContinuousRecognitionAsync();
+//            setOnTaskCompletedListener(task, new OnTaskCompletedListener2<Void>() {
+//                @Override
+//                public void onCompleted(Void result) {
+//                    continuousListeningStarted = true;
+//                }
+//            });
         } catch (Exception ex) {
             System.out.println(ex.getMessage());
         }
@@ -766,25 +773,5 @@ public class MainActivity extends ActionMenuActivity {
 
     }
 
-    private <T> void setOnTaskCompletedListener(final Future<T> task, final OnTaskCompletedListener2<T> listener) {
-        ms_executorService.submit(new Callable<Object>() {
-            @Override
-            public Object call() throws Exception {
-                T result = task.get();
-                listener.onCompleted(result);
-                return null;
-            }
-        });
-    }
-
-    private interface OnTaskCompletedListener2<T> {
-        void onCompleted(T taskResult);
-    }
-
-    private static ExecutorService ms_executorService;
-
-    static {
-        ms_executorService = Executors.newCachedThreadPool();
-    }
 
 }

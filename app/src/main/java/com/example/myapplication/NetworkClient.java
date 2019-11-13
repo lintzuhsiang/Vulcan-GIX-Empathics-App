@@ -43,8 +43,11 @@ public class NetworkClient {
     @GET("/health_check")
     Call<ResponseBody> uploadScore();
     @Multipart
-    @POST("/post_pic")
-    Call<ResponseBody> uploadImage(@Part MultipartBody.Part photo, @Part("description") RequestBody description);
+        @POST("/post_pic")
+        Call<ResponseBody> uploadImage(@Part MultipartBody.Part photo, @Part("description") RequestBody description);
+    @Multipart
+    @POST("/post_mic")
+    Call<ResponseBody> uploadAudio(@Part MultipartBody.Part audio, @Part("description") RequestBody description);
 
     }
 
@@ -57,9 +60,6 @@ public class NetworkClient {
         RequestBody fileReqBody = RequestBody.create(MediaType.parse("image/*"),file);
         MultipartBody.Part part = MultipartBody.Part.createFormData("image",file.getName(),fileReqBody);
 
-//        RequestBody fileReqBody = RequestBody.create(MediaType.parse("image/*")," /storage/emulated/0/Android/data/com.example.myapplication/files/Pictures/2019_10_30_19_46_42.jpg");
-//        MultipartBody.Part part = MultipartBody.Part.createFormData("image","2019_10_30_19_46_42.jpg");
-
         RequestBody description = RequestBody.create(MediaType.parse("text/plain"),"image-type");
 
         Call call = uploadAPIs.uploadImage(part,description);
@@ -68,20 +68,12 @@ public class NetworkClient {
             @Override
             public void onResponse(Call<ResponseBody> call, Response<ResponseBody> response) {
 
-//              Response s = response.body();
-//                assert s != null;
-//                Log.d("client", String.valueOf(Response.success(response).body().raw().string()));
                 try {
                     Log.d("client", String.valueOf(response.body().string()));
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
-                //                if(s!=null){
-//                    System.out.println(s.substring(0));
-//                }
-//                Log.d("client", String.valueOf(s.substring(0)));
-//                Log.d("client", String.valueOf(Response.success(response)));
-//                Log.d("client", String.valueOf(response.code()));
+
 
             }
 
@@ -113,4 +105,40 @@ public class NetworkClient {
         });
 
     }
+
+    public void uploadAudio(File file){
+        Retrofit retrofit = NetworkClient.getRetrofitClient(this);
+
+        UploadAPIs uploadAPIs = retrofit.create(UploadAPIs.class);
+
+
+        RequestBody fileReqBody = RequestBody.create(MediaType.parse("audio/*"),file);
+        MultipartBody.Part part = MultipartBody.Part.createFormData("audio",file.getName(),fileReqBody);
+
+        RequestBody description = RequestBody.create(MediaType.parse("text/plain"),"audio-type");
+
+        Call call = uploadAPIs.uploadAudio(part,description);
+        Log.d("client","upLoadToServer2");
+        call.enqueue(new Callback<ResponseBody>() {
+            @Override
+            public void onResponse(Call<ResponseBody> call, Response<ResponseBody> response) {
+
+                try {
+                    Log.d("client", String.valueOf(response.body().string()));
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+
+
+            }
+
+            @Override
+            public void onFailure(Call call, Throwable t) {
+                t.printStackTrace();
+
+            }
+        });
+
+    }
+
 }
