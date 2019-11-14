@@ -1,3 +1,4 @@
+
 //
 // Copyright (c) Microsoft. All rights reserved.
 // Licensed under the MIT license. See LICENSE.md file in the project root for full license information.
@@ -35,7 +36,7 @@ import static java.lang.String.*;
  */
 public class MicrophoneStream extends PullAudioInputStreamCallback {
     private final static int SAMPLE_RATE = 16000;
-//    private final AudioStreamFormat format;
+    //    private final AudioStreamFormat format;
     private AudioRecord recorder;
     static public int  bufferSizeInBytes;
     boolean isRecording;
@@ -68,57 +69,58 @@ public class MicrophoneStream extends PullAudioInputStreamCallback {
 
     }
 
-    public void startRecording(boolean isRecording,final String currTime) throws IOException {
+    public void startRecording(final String currTime) throws IOException {
         this.currTime = currTime;
+//        this.currTime = String.valueOf(System.currentTimeMillis());
+
         Log.d("mic",currTime);
+
         Log.d("mic", "saveRecording");
         Log.d("mic", valueOf(isRecording));
 
         rawfile = getFile("raw");
-        long audiotime = System.currentTimeMillis();
+        long audiostarttime = System.currentTimeMillis();
         final byte data[] = new byte[this.bufferSizeInBytes];
         this.isRecording = isRecording;
         short[] mBuffer = new short[this.bufferSizeInBytes];
 
 
 
-         DataOutputStream stream = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(rawfile)));
-//        ByteArrayOutputStream stream = new ByteArrayOutputStream(this.bufferSizeInBytes);
+        DataOutputStream stream = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(rawfile)));
 
 
 //        if (stream != null){
-            while(this.isRecording){
-//                int read = recorder.read(data, 0, this.bufferSizeInBytes);
-////                Log.d("read", data.toString());
-////                if(AudioRecord.ERROR_INVALID_OPERATION != read){
-////                    try{
-////                        stream.write(data);
-////                        Log.d("mic","save audio");
-////                    }catch (IOException e){
-////                        e.printStackTrace();
-////                        Log.d("mic","save error");
-////                    }
-////                }
-                double sum = 0;
-                int readSize = this.recorder.read(mBuffer, 0, mBuffer.length);
-                for (int i = 0; i < readSize; i++) {
-                    stream.writeShort(mBuffer[i]);
-                    sum += mBuffer[i] * mBuffer[i];
-                }
-                if (readSize > 0) {
-                    final double amplitude = sum / readSize;
-                }
+        while(System.currentTimeMillis() - audiostarttime > 2000){
+//
+            double sum = 0;
+            int readSize = this.recorder.read(mBuffer, 0, mBuffer.length);
+            for (int i = 0; i < readSize; i++) {
+                stream.writeShort(mBuffer[i]);
+                sum += mBuffer[i] * mBuffer[i];
             }
-    try{
-        stream.flush();
-        stream.close();
-    }catch(IOException e){
-        e.printStackTrace();
-    }
-//        }
-         Log.d("mic","after runnable");
+            if (readSize > 0) {
+                final double amplitude = sum / readSize;
+            }
+        }
+        try{
+            stream.flush();
+            stream.close();
+        }catch(IOException e){
+            e.printStackTrace();
+        }
+        saveRecording();
+        Log.d("mic","after runnable");
     }
 
+    private void saveRecording(){
+        File wavfile = getFile("wav");
+        try {
+            rawToWave(rawfile,wavfile);
+            Log.d("file","save Recording");
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
 
 
     public void stopRecording(){

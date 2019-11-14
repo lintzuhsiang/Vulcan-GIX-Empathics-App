@@ -109,6 +109,7 @@ public class MainActivity extends ActionMenuActivity {
     private Bitmap storedBitmap;
     private File file;
 
+    private ImageReader reader;
     //thread
     private Handler mBackgroundHandler;
     private HandlerThread mBackgroundThread;
@@ -132,7 +133,7 @@ public class MainActivity extends ActionMenuActivity {
     private final String subscriptionKey = FACE_SUBSCRIPTION_KEY;
     private final FaceServiceClient faceServiceClient = new FaceServiceRestClient(apiEndpoint, subscriptionKey);
     public String fileDir;
-    public SimpleDateFormat DateFormat = new SimpleDateFormat("yyyyMMdd_HHmmss",Locale.getDefault());
+    public SimpleDateFormat DateFormat = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault());
     private MicrophoneStream microphoneStream;
 
 
@@ -150,6 +151,7 @@ public class MainActivity extends ActionMenuActivity {
     private static final String SpeechSubscriptionKey = "d122e91d2df24ce889a13695542564c2";
     private static final String SpeechRegion = "eastus";
     private ServiceCall mSentimentCall;
+    private String preSpeechResult;
 
     private SpeechConfig speechConfig;
     private String sentimentResult = "";
@@ -175,10 +177,8 @@ public class MainActivity extends ActionMenuActivity {
         imageView = findViewById(R.id.imageView);
         imageViewRedDot = findViewById(R.id.imageView2);
 
-        int imageResource = getResources().getIdentifier("@drawable/reddot", "drawable", getPackageName());
-        imageViewRedDot.setImageResource(imageResource);
 
-        Toast.makeText(MainActivity.this, "Tap to take photos.", Toast.LENGTH_LONG).show();
+        Toast.makeText(MainActivity.this, "Tap to startm emotion detection.", Toast.LENGTH_LONG).show();
 
 //        mRequest = new ServiceRequestClient(SentimentSubscriptionKey);
 
@@ -189,16 +189,18 @@ public class MainActivity extends ActionMenuActivity {
             System.out.println(ex.getMessage());
             return;
         }
+
+
         takePictureButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                if(continuousListeningStarted) {
+                if (continuousListeningStarted) {
                     if (reco != null) {
                         final Future<Void> task = reco.stopContinuousRecognitionAsync();
                         microphoneStream.stopRecording();
                         micHandler.removeCallbacks(micRunnable);
 
-                        setOnTaskCompletedListener(task, new OnTaskCompletedListener2<Void>() {
+                        setSSTCompletedListener(task, new OnTaskCompletedListener<Void>() {
                             @Override
                             public void onCompleted(Void result) {
                                 Log.i("mic", "Continuous recognition stopped.");
@@ -209,18 +211,24 @@ public class MainActivity extends ActionMenuActivity {
                         continuousListeningStarted = false;
                     }
 
-                    Toast.makeText(MainActivity.this, "Stop Taking Photos", Toast.LENGTH_SHORT).show();
+
+                    Toast.makeText(MainActivity.this, "Emotion detection: Off", Toast.LENGTH_SHORT).show();
                     timerHandler.removeCallbacks(runnableCode);
 //                        ss_executorService.shutdown();
 //                        s_executorService.shutdown();
-                    imageViewRedDot.setVisibility(View.INVISIBLE);
+                    int imageResource = getResources().getIdentifier("@drawable/pause", "drawable", getPackageName());
+                    imageViewRedDot.setImageResource(imageResource);
                     imageView.setVisibility(View.INVISIBLE);
+
+                    imageViewRedDot.setVisibility(View.INVISIBLE);
                     Log.d("Handlers", "Stop runnable on main thread");
 
-                }else{
+                } else {
 
+                    int imageResource = getResources().getIdentifier("@drawable/reddot", "drawable", getPackageName());
+                    imageViewRedDot.setImageResource(imageResource);
 
-                    Toast.makeText(MainActivity.this, "Start Taking Photos", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(MainActivity.this, "Emotion detection: On", Toast.LENGTH_SHORT).show();
                     imageViewRedDot.setVisibility(View.VISIBLE);
                     //post_picture();
 
@@ -235,15 +243,15 @@ public class MainActivity extends ActionMenuActivity {
 
     private void post_picture() {
         runnableCode = new Runnable() {
-                        @Override
-                        public void run() {
-                            Log.d("Handlers", "Called on main thread");
-                            cameraCaptureStartTime = System.currentTimeMillis();
-                            takePicture();
+            @Override
+            public void run() {
+                Log.d("Handlers", "Called on main thread");
+                cameraCaptureStartTime = System.currentTimeMillis();
+                takePicture();
 //
-                            timerHandler.postDelayed(this, 1000);
-                        }
-                    };
+                timerHandler.postDelayed(this, 1000);
+            }
+        };
         timerHandler.post(runnableCode);
 
 
@@ -255,47 +263,12 @@ public class MainActivity extends ActionMenuActivity {
 //
     }
 
-    private void post_mic(){
+    private void post_mic() {
         speechSentiment();
+        uploadScore();
     }
 
-    private <T> void setOnTaskCompletedListener(final Future<T> task, final OnTaskCompletedListener2<T> listener) {
-        ms_executorService.submit(new Callable<Object>() {
-            @Override
-            public Object call() throws Exception {
-                T result = task.get();
-                listener.onCompleted(result);
-                return null;
-            }
-        });
-    }
-
-    private interface OnTaskCompletedListener2<T> {
-        void onCompleted(T taskResult);
-    }
-
-    private static ExecutorService ms_executorService;
-
-    static {
-        ms_executorService = Executors.newCachedThreadPool();
-    }
-
-    protected void startMicBackgroundThread() {
-        micBackgroundThread = new HandlerThread("Mic Background");
-        micBackgroundThread.start();
-        micBackgroundHandler = new Handler(micBackgroundThread.getLooper());
-    }
-    protected void stopMicBackgroundThread() {
-        micBackgroundThread.quitSafely();
-        try {
-            micBackgroundThread.join();
-            micBackgroundThread = null;
-            micBackgroundHandler = null;
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-    }
-    private String speechSentiment(){
+    private String speechSentiment() {
 
         AudioConfig audioInput = null;
         try {
@@ -304,20 +277,24 @@ public class MainActivity extends ActionMenuActivity {
             reco = new SpeechRecognizer(speechConfig, audioInput);
 
             final String currTime = fileDir + "/" + DateFormat.format(new Date());
-            final boolean isRecording= true;
+            final boolean isRecording = true;
+//            microphoneStream.startRecording(isRecording, currTime);
+
             micRunnable = new Runnable() {
                 @Override
                 public void run() {
                     try {
-                        microphoneStream.startRecording(isRecording,currTime);
+                        microphoneStream.startRecording(currTime);
                     } catch (IOException e) {
                         e.printStackTrace();
                     }
+                    micHandler.postDelayed(micRunnable, 2000);
 
                 }
             };
-            Thread audio = new Thread(micRunnable);
-            audio.start();
+            micHandler.post(micRunnable);
+//            Thread audio = new Thread(micRunnable);
+//            audio.start();
             Log.d("mic", String.valueOf(microphoneStream));
 
 
@@ -329,69 +306,77 @@ public class MainActivity extends ActionMenuActivity {
                     if (s.length() > 10) {
                         sentiment.afterTextchange(s);
                         sentimentResult = sentiment.getSentimentScore();
-                        client.uploadScore(sentimentResult);
-                        Log.i("text", "here "+ sentimentResult);
+                        if (preSpeechResult != s && mlistener != null) {
+                            mlistener.onChange(s);
+                        }
 
                     }
                 }
             });
-                    continuousListeningStarted = true;
+            continuousListeningStarted = true;
 //
-//            final Future<Void> task = reco.startContinuousRecognitionAsync();
-//            setOnTaskCompletedListener(task, new OnTaskCompletedListener2<Void>() {
-//                @Override
-//                public void onCompleted(Void result) {
-//                    continuousListeningStarted = true;
-//                }
-//            });
+            final Future<Void> task = reco.startContinuousRecognitionAsync();
+            setSSTCompletedListener(task, new OnTaskCompletedListener<Void>() {
+                @Override
+                public void onCompleted(Void result) {
+                    continuousListeningStarted = true;
+                }
+            });
         } catch (Exception ex) {
             System.out.println(ex.getMessage());
         }
         return sentimentResult;
     }
 
-    private <T> void takePictureCompleted() throws ExecutionException, InterruptedException {
-        Log.d("takepicture","takePictureCompleted start");
-        FutureTask<File> future_pic = new FutureTask<>(new Callable<File>(){
-            File newfile;
-            public File call(){
-                newfile = takePicture();
-                return newfile;
-            }
 
-        });
-        ss_executorService.submit(future_pic);
-//        File fileName = future_pic.get();
-//        while(!future_pic.isDone()){
-//        Thread.sleep(50);
-//        }
-//        client.uploadToServer(fileName);
-        Log.d("takepicture","takePictureCompleted");
-
-    }
-
-
-
-    private void RepeatTakePhoto(OnTaskCompletedListener listener) {
-        s_executorService.scheduleWithFixedDelay(new Runnable() {
+    private <T> void setSSTCompletedListener(final Future<T> task, final OnTaskCompletedListener<T> listener) {
+        ms_executorService.submit(new Callable<Object>() {
             @Override
-            public void run() {
-                Log.d("emotion","in future pic0");
-//
-
-                try {
-                    takePictureCompleted();
-                } catch (ExecutionException e) {
-                    e.printStackTrace();
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
+            public Object call() throws Exception {
+//                T result = task.get();
+//                listener.onCompleted(result);
+                return null;
             }
-        },0,1, TimeUnit.SECONDS);
+        });
     }
 
     private interface OnTaskCompletedListener<T> {
         void onCompleted(T taskResult);
+    }
+
+    private static ExecutorService ms_executorService;
+
+    static {
+        ms_executorService = Executors.newCachedThreadPool();
+    }
+
+
+    private TextChangeListener mlistener;
+
+    private void uploadScore() {
+        s_executorService.scheduleWithFixedDelay(new Runnable() {
+            @Override
+            public void run() {
+                client.uploadScore("0.5");
+                setTextListener(new TextChangeListener<String>() {
+                    @Override
+                    public void onChange(String result) {
+                        sentiment.afterTextchange(result);
+                        sentimentResult =  sentiment.getSentimentScore();
+                        Log.d("sentiment", result);
+                        client.uploadScore(result);
+                    }
+                });
+            }
+        }, 0, 1, TimeUnit.SECONDS);
+    }
+
+    private void setTextListener(TextChangeListener<String> listener) {
+        mlistener = listener;
+    }
+
+    private interface TextChangeListener<String> {
+        void onChange(String result);
     }
 
     private static ScheduledExecutorService s_executorService;
@@ -400,27 +385,23 @@ public class MainActivity extends ActionMenuActivity {
         s_executorService = Executors.newScheduledThreadPool(1);
     }
 
-    private static ExecutorService ss_executorService;
-
-    static {
-        ss_executorService = Executors.newFixedThreadPool(2);
-    }
-
-
 
     TextureView.SurfaceTextureListener textureListener = new TextureView.SurfaceTextureListener() {
         @Override
         public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
             openCamera();
         }
+
         @Override
         public void onSurfaceTextureSizeChanged(SurfaceTexture surface, int width, int height) {
             // Transform you image captured size according to the surface width and height
         }
+
         @Override
         public boolean onSurfaceTextureDestroyed(SurfaceTexture surface) {
             return false;
         }
+
         @Override
         public void onSurfaceTextureUpdated(SurfaceTexture surface) {
         }
@@ -433,41 +414,29 @@ public class MainActivity extends ActionMenuActivity {
             cameraDevice = camera;
 //            createCameraPreview();
         }
+
         @Override
         public void onDisconnected(CameraDevice camera) {
             cameraDevice.close();
         }
+
         @Override
         public void onError(CameraDevice camera, int error) {
             cameraDevice.close();
             cameraDevice = null;
         }
     };
-    protected void startBackgroundThread() {
-        mBackgroundThread = new HandlerThread("Camera Background");
-        mBackgroundThread.start();
-        mBackgroundHandler = new Handler(mBackgroundThread.getLooper());
-    }
-    protected void stopBackgroundThread() {
-        mBackgroundThread.quitSafely();
-        try {
-            mBackgroundThread.join();
-            mBackgroundThread = null;
-            mBackgroundHandler = null;
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-    }
+
 
     private File takePicture() {
-        if(null == cameraDevice) {
+        if (null == cameraDevice) {
             Log.e(TAG, "cameraDevice is null");
             return null;
         }
         CameraManager manager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
         try {
             CameraCharacteristics characteristics = manager.getCameraCharacteristics(cameraDevice.getId());
-            float maxzoom = (characteristics.get(CameraCharacteristics.SCALER_AVAILABLE_MAX_DIGITAL_ZOOM))*10;
+            float maxzoom = (characteristics.get(CameraCharacteristics.SCALER_AVAILABLE_MAX_DIGITAL_ZOOM)) * 10;
 
             Size[] jpegSizes = null;
             if (characteristics != null) {
@@ -480,7 +449,7 @@ public class MainActivity extends ActionMenuActivity {
                 height = jpegSizes[0].getHeight();
             }
 
-            ImageReader reader = ImageReader.newInstance(width, height, ImageFormat.JPEG, 1);
+            reader = ImageReader.newInstance(width, height, ImageFormat.JPEG, 1);
             List<Surface> outputSurfaces = new ArrayList<Surface>(2);
 
             outputSurfaces.add(reader.getSurface());
@@ -496,7 +465,7 @@ public class MainActivity extends ActionMenuActivity {
             SimpleDateFormat formatter = new SimpleDateFormat("yyyy_MM_dd_HH_mm_ss", Locale.US);
             Date now = new Date();
 
-            file = new File(getExternalFilesDir(Environment.DIRECTORY_PICTURES)+"/"+formatter.format(now)+".jpg");
+            file = new File(getExternalFilesDir(Environment.DIRECTORY_PICTURES) + "/" + formatter.format(now) + ".jpg");
 
 
             ImageReader.OnImageAvailableListener readerListener = new ImageReader.OnImageAvailableListener() {
@@ -511,7 +480,7 @@ public class MainActivity extends ActionMenuActivity {
                         buffer.get(bytes);
                         faceAPIStartTime = System.currentTimeMillis();
 
-                        if(isExternalStorageWritable()){
+                        if (isExternalStorageWritable()) {
                             save(bytes);
                         }
                     } catch (FileNotFoundException e) {
@@ -521,7 +490,7 @@ public class MainActivity extends ActionMenuActivity {
                     } finally {
                         if (image != null) {
                             image.close();
-                            Log.d("emotion","image close");
+                            Log.d("emotion", "image close");
                         }
                     }
                 }
@@ -533,18 +502,18 @@ public class MainActivity extends ActionMenuActivity {
                     Matrix mat = new Matrix();
                     mat.postRotate(270);
                     storedBitmap = Bitmap.createBitmap(storedBitmap, 0, 0, storedBitmap.getWidth(), storedBitmap.getHeight(), mat, true);
-                    try{
-                    output = new FileOutputStream(file);
-                    storedBitmap.compress(Bitmap.CompressFormat.JPEG, 100, output);
+                    try {
+                        output = new FileOutputStream(file);
+                        storedBitmap.compress(Bitmap.CompressFormat.JPEG, 100, output);
 //                    detectAndFrame(storedBitmap);
                     } finally {
                         if (null != output) {
-                            Log.d("emotion",file.getAbsolutePath());
-                            client.uploadImage(file);
-//                            detectAndFrame(storedBitmap);
+                            Log.d("emotion", file.getAbsolutePath());
+//                            client.uploadImage(file);
+                            //detectAndFrame(storedBitmap);
                             output.flush();
                             output.close();
-                            Log.d("emotion","saved image");
+                            Log.d("emotion", "saved image");
                         }
                     }
                 }
@@ -556,7 +525,7 @@ public class MainActivity extends ActionMenuActivity {
                 @Override
                 public void onCaptureCompleted(CameraCaptureSession session, CaptureRequest request, TotalCaptureResult result) {
                     super.onCaptureCompleted(session, request, result);
-                    Log.d("emotion",String.format("takePicture end %s",cameraCaptureStartTime - System.currentTimeMillis()));
+                    Log.d("emotion", String.format("takePicture end %s", cameraCaptureStartTime - System.currentTimeMillis()));
 //                    createCameraPreview();
                 }
             };
@@ -569,6 +538,7 @@ public class MainActivity extends ActionMenuActivity {
                         e.printStackTrace();
                     }
                 }
+
                 @Override
                 public void onConfigureFailed(CameraCaptureSession session) {
                 }
@@ -578,6 +548,7 @@ public class MainActivity extends ActionMenuActivity {
         }
         return file;
     }
+
     private void openCamera() {
         CameraManager manager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
         try {
@@ -597,6 +568,18 @@ public class MainActivity extends ActionMenuActivity {
         }
     }
 
+    private void closeCamera() {
+        if (null != cameraDevice) {
+            cameraDevice.close();
+            cameraDevice = null;
+        }
+        if (null != reader) {
+            reader.close();
+            reader = null;
+        }
+    }
+
+
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         if (requestCode == REQUEST_CAMERA_PERMISSION) {
@@ -607,6 +590,7 @@ public class MainActivity extends ActionMenuActivity {
             }
         }
     }
+
     @Override
     protected void onResume() {
         super.onResume();
@@ -618,21 +602,39 @@ public class MainActivity extends ActionMenuActivity {
             textureView.setSurfaceTextureListener(textureListener);
         }
     }
+
     @Override
     protected void onPause() {
         Log.e(TAG, "onPause");
-        //closeCamera();
+        closeCamera();
         stopBackgroundThread();
         super.onPause();
     }
 
+
+    protected void startBackgroundThread() {
+        mBackgroundThread = new HandlerThread("Camera Background");
+        mBackgroundThread.start();
+        mBackgroundHandler = new Handler(mBackgroundThread.getLooper());
+    }
+
+    protected void stopBackgroundThread() {
+        mBackgroundThread.quitSafely();
+        try {
+            mBackgroundThread.join();
+            mBackgroundThread = null;
+            mBackgroundHandler = null;
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
 
     // detect capture frame and call Face API
     private void detectAndFrame(final Bitmap bitmap) {
 
 
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        bitmap.compress(Bitmap.CompressFormat.JPEG,100,outputStream);
+        bitmap.compress(Bitmap.CompressFormat.JPEG, 100, outputStream);
         ByteArrayInputStream inputStream =
                 new ByteArrayInputStream(outputStream.toByteArray());
 
@@ -649,12 +651,12 @@ public class MainActivity extends ActionMenuActivity {
                                     true,         // returnFaceId
                                     false,        // returnFaceLandmarks
                                     //null          // returnFaceAttributes:
-                                    new FaceServiceClient.FaceAttributeType[] {
-                                        FaceServiceClient.FaceAttributeType.Age,
-                                        FaceServiceClient.FaceAttributeType.Emotion
+                                    new FaceServiceClient.FaceAttributeType[]{
+                                            FaceServiceClient.FaceAttributeType.Age,
+                                            FaceServiceClient.FaceAttributeType.Emotion
                                     }
                             );
-                            if (result == null){
+                            if (result == null) {
                                 publishProgress(
                                         "Detection Finished. Nothing detected");
                                 return null;
@@ -675,22 +677,24 @@ public class MainActivity extends ActionMenuActivity {
                         //TODO: show progress dialog
 //                        detectionProgressDialog.show();
                     }
+
                     @Override
                     protected void onProgressUpdate(String... progress) {
                         //TODO: update progress
 //                        detectionProgressDialog.setMessage(progress[0]);
                     }
+
                     @Override
                     protected void onPostExecute(Face[] result) {
                         //TODO: update face frames
 //                        detectionProgressDialog.dismiss();
 
-                        if(!exceptionMessage.equals("")){
+                        if (!exceptionMessage.equals("")) {
 //                            showError(exceptionMessage);
                         }
                         if (result == null) return;
 //
-                        Log.d("emotion",String.format("detect frame ends %s",faceAPIStartTime - System.currentTimeMillis()));
+                        Log.d("emotion", String.format("detect frame ends %s", faceAPIStartTime - System.currentTimeMillis()));
                         imageView.setImageResource(showFaceResult(result));//,imageResource));
                         imageView.setVisibility(View.VISIBLE);
                     }
@@ -702,11 +706,11 @@ public class MainActivity extends ActionMenuActivity {
     // get Face Result and return responding icon
     private int showFaceResult(Face[] faces) {
         Log.d("emotion", "Inside showFaceResult function");
-        int imageResource=0;
+        int imageResource = 0;
 
-        String emo="";
+        String emo = "";
         if (faces != null) {
-            Log.d("emotion","face numbers %s" + faces.length);
+            Log.d("emotion", "face numbers %s" + faces.length);
 
             for (Face face : faces) {
                 FaceRectangle faceRectangle = face.faceRectangle;
@@ -726,27 +730,27 @@ public class MainActivity extends ActionMenuActivity {
                 emo = emoArr[maxEmo];
 
             }
-        }else{
+        } else {
 //            paint.setTextSize(400);
 //            canvas.drawText("no face detected",75,385,paint);
 //            canvas.translate(0,200);
         }
-        Log.d("emotion",emo);
+        Log.d("emotion", emo);
 
-        switch(emo){
+        switch (emo) {
             default:
                 imageResource = android.R.color.transparent;
                 break;
             case "neutral":
-                imageResource = getResources().getIdentifier("@drawable/neutral","drawable",getPackageName());
+                imageResource = getResources().getIdentifier("@drawable/neutral", "drawable", getPackageName());
                 break;
 
             case "happiness":
-                imageResource = getResources().getIdentifier("@drawable/happy","drawable",getPackageName());
+                imageResource = getResources().getIdentifier("@drawable/happy", "drawable", getPackageName());
                 break;
 
             case "sadness":
-                imageResource = getResources().getIdentifier("@drawable/sad","drawable",getPackageName());
+                imageResource = getResources().getIdentifier("@drawable/sad", "drawable", getPackageName());
                 break;
         }
         Log.d("imageResource", String.valueOf(imageResource));
@@ -754,18 +758,18 @@ public class MainActivity extends ActionMenuActivity {
     }
 
 
-    public static int getMaxValue(double[] numbers){
+    public static int getMaxValue(double[] numbers) {
         double maxValue = numbers[0];
         int maxIndex = 0;
 
-        for(int i=0 ;i < numbers.length;i++){
-        if(numbers[i] > maxValue){
-        maxValue = numbers[i];
-        maxIndex = i;
-        }
+        for (int i = 0; i < numbers.length; i++) {
+            if (numbers[i] > maxValue) {
+                maxValue = numbers[i];
+                maxIndex = i;
+            }
         }
         return maxIndex;
-        }
+    }
 
     private boolean isExternalStorageWritable() {
 
