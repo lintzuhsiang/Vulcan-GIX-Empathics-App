@@ -71,26 +71,23 @@ public class MicrophoneStream extends PullAudioInputStreamCallback {
 
     public void startRecording(final String currTime) throws IOException {
         this.currTime = currTime;
-//        this.currTime = String.valueOf(System.currentTimeMillis());
 
         Log.d("mic",currTime);
-
         Log.d("mic", "saveRecording");
-        Log.d("mic", valueOf(isRecording));
-
         rawfile = getFile("raw");
+
+        System.out.println(rawfile.getClass());
         long audiostarttime = System.currentTimeMillis();
-        final byte data[] = new byte[this.bufferSizeInBytes];
-        this.isRecording = isRecording;
+//        final byte data[] = new byte[this.bufferSizeInBytes];
+//        this.isRecording = isRecording;
         short[] mBuffer = new short[this.bufferSizeInBytes];
 
 
 
         DataOutputStream stream = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(rawfile)));
 
-
 //        if (stream != null){
-        while(System.currentTimeMillis() - audiostarttime > 2000){
+        while(System.currentTimeMillis() - audiostarttime < 1000){
 //
             double sum = 0;
             int readSize = this.recorder.read(mBuffer, 0, mBuffer.length);
@@ -103,16 +100,16 @@ public class MicrophoneStream extends PullAudioInputStreamCallback {
             }
         }
         try{
+            saveRecording();
             stream.flush();
             stream.close();
         }catch(IOException e){
             e.printStackTrace();
         }
-        saveRecording();
         Log.d("mic","after runnable");
     }
 
-    private void saveRecording(){
+    public void saveRecording(){
         File wavfile = getFile("wav");
         try {
             rawToWave(rawfile,wavfile);
@@ -121,7 +118,6 @@ public class MicrophoneStream extends PullAudioInputStreamCallback {
             e.printStackTrace();
         }
     }
-
 
     public void stopRecording(){
         File wavfile = getFile("wav");

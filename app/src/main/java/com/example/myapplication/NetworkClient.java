@@ -40,6 +40,9 @@ public class NetworkClient {
 
     }
     public interface UploadAPIs{
+
+    @GET("/get_session_id")
+    Call<ResponseBody> getSessionID();
     @GET("/health_check")
     Call<ResponseBody> uploadScore();
     @Multipart
@@ -139,6 +142,23 @@ public class NetworkClient {
             }
         });
 
+    }
+
+    public void getSessionID(){
+        Retrofit retrofit = NetworkClient.getRetrofitClient(this);
+        UploadAPIs uploadAPIs = retrofit.create(UploadAPIs.class);
+        Call call = uploadAPIs.getSessionID();
+        call.enqueue(new Callback(){
+            @Override
+            public void onResponse(Call call, Response response) {
+                Log.d("client", String.valueOf(response.code()));
+            }
+
+            @Override
+            public void onFailure(Call call, Throwable t) {
+
+            }
+        });
     }
 
 }

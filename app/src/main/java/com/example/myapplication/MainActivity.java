@@ -178,7 +178,7 @@ public class MainActivity extends ActionMenuActivity {
         imageViewRedDot = findViewById(R.id.imageView2);
 
 
-        Toast.makeText(MainActivity.this, "Tap to startm emotion detection.", Toast.LENGTH_LONG).show();
+        Toast.makeText(MainActivity.this, "Tap to start.", Toast.LENGTH_LONG).show();
 
 //        mRequest = new ServiceRequestClient(SentimentSubscriptionKey);
 
@@ -198,7 +198,6 @@ public class MainActivity extends ActionMenuActivity {
                     if (reco != null) {
                         final Future<Void> task = reco.stopContinuousRecognitionAsync();
                         microphoneStream.stopRecording();
-                        micHandler.removeCallbacks(micRunnable);
 
                         setSSTCompletedListener(task, new OnTaskCompletedListener<Void>() {
                             @Override
@@ -220,7 +219,7 @@ public class MainActivity extends ActionMenuActivity {
                     imageViewRedDot.setImageResource(imageResource);
                     imageView.setVisibility(View.INVISIBLE);
 
-                    imageViewRedDot.setVisibility(View.INVISIBLE);
+//                    imageViewRedDot.setVisibility(View.INVISIBLE);
                     Log.d("Handlers", "Stop runnable on main thread");
 
                 } else {
@@ -230,7 +229,7 @@ public class MainActivity extends ActionMenuActivity {
 
                     Toast.makeText(MainActivity.this, "Emotion detection: On", Toast.LENGTH_SHORT).show();
                     imageViewRedDot.setVisibility(View.VISIBLE);
-                    //post_picture();
+                    post_picture();
 
                     //////microphone
                     post_mic();
@@ -254,13 +253,6 @@ public class MainActivity extends ActionMenuActivity {
         };
         timerHandler.post(runnableCode);
 
-
-//        RepeatTakePhoto(new OnTaskCompletedListener() {
-//            @Override
-//            public void onCompleted(Object result) {
-//            }
-//        });
-//
     }
 
     private void post_mic() {
@@ -279,25 +271,6 @@ public class MainActivity extends ActionMenuActivity {
             final String currTime = fileDir + "/" + DateFormat.format(new Date());
             final boolean isRecording = true;
 //            microphoneStream.startRecording(isRecording, currTime);
-
-            micRunnable = new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        microphoneStream.startRecording(currTime);
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                    micHandler.postDelayed(micRunnable, 2000);
-
-                }
-            };
-            micHandler.post(micRunnable);
-//            Thread audio = new Thread(micRunnable);
-//            audio.start();
-            Log.d("mic", String.valueOf(microphoneStream));
-
-
             reco.recognized.addEventListener(new EventHandler<SpeechRecognitionEventArgs>() {
                 @Override
                 public void onEvent(Object o, SpeechRecognitionEventArgs speechRecognitionResultEventArgs) {
@@ -307,9 +280,8 @@ public class MainActivity extends ActionMenuActivity {
                         sentiment.afterTextchange(s);
                         sentimentResult = sentiment.getSentimentScore();
                         if (preSpeechResult != s && mlistener != null) {
-                            mlistener.onChange(s);
+                            mlistener.onChanged(s);
                         }
-
                     }
                 }
             });
@@ -326,6 +298,31 @@ public class MainActivity extends ActionMenuActivity {
             System.out.println(ex.getMessage());
         }
         return sentimentResult;
+    }
+
+    void uploadScore() {
+        ss_executorService.scheduleWithFixedDelay(new Runnable() {
+            @Override
+            public void run() {
+                client.uploadScore("0.5");
+                setTextListener(new TextChangeListener() {
+                    @Override
+                    public void onChanged(Object taskResult) {
+                        sentiment.afterTextchange((String) taskResult);
+                        sentimentResult = sentiment.getSentimentScore();
+                        client.uploadScore(sentimentResult);
+                    }
+                });
+                fileDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES).getAbsolutePath();
+                String currTime = String.valueOf(System.currentTimeMillis());
+                try {
+                    Log.d("path",fileDir);
+                    microphoneStream.startRecording(fileDir+"/"+currTime);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }, 0, 1000, TimeUnit.MILLISECONDS);
     }
 
 
@@ -350,33 +347,20 @@ public class MainActivity extends ActionMenuActivity {
         ms_executorService = Executors.newCachedThreadPool();
     }
 
+    ScheduledExecutorService ss_executorService = Executors.newScheduledThreadPool(3);
+
 
     private TextChangeListener mlistener;
 
-    private void uploadScore() {
-        s_executorService.scheduleWithFixedDelay(new Runnable() {
-            @Override
-            public void run() {
-                client.uploadScore("0.5");
-                setTextListener(new TextChangeListener<String>() {
-                    @Override
-                    public void onChange(String result) {
-                        sentiment.afterTextchange(result);
-                        sentimentResult =  sentiment.getSentimentScore();
-                        Log.d("sentiment", result);
-                        client.uploadScore(result);
-                    }
-                });
-            }
-        }, 0, 1, TimeUnit.SECONDS);
-    }
 
-    private void setTextListener(TextChangeListener<String> listener) {
+
+    private void setTextListener(TextChangeListener listener) {
         mlistener = listener;
     }
 
-    private interface TextChangeListener<String> {
-        void onChange(String result);
+
+    private interface TextChangeListener<T> {
+        void onChanged(T result);
     }
 
     private static ScheduledExecutorService s_executorService;
@@ -510,7 +494,7 @@ public class MainActivity extends ActionMenuActivity {
                         if (null != output) {
                             Log.d("emotion", file.getAbsolutePath());
 //                            client.uploadImage(file);
-                            //detectAndFrame(storedBitmap);
+//                            detectAndFrame(storedBitmap);
                             output.flush();
                             output.close();
                             Log.d("emotion", "saved image");
