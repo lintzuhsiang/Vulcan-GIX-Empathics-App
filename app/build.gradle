@@ -31,9 +31,10 @@ dependencies {
     implementation 'com.vuzix:hud-actionmenu:1.3'
     implementation 'com.vuzix:hud-resources:1.2'
     implementation 'com.microsoft.projectoxford:face:1.4.3'
-    implementation project(':ClientLibrary')
+    implementation project(':TextSDK')
     implementation 'com.squareup.retrofit2:retrofit:2.3.0'
     implementation 'com.squareup.retrofit2:converter-gson:2.0.2'
+//    implementation 'com.microsoft.cognitive:speakerrecognition:1.1.0'
 
 
 }

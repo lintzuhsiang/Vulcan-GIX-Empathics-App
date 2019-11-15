@@ -72,6 +72,9 @@ import com.microsoft.cognitive.textanalytics.retrofit.ServiceCall;
 import com.microsoft.cognitive.textanalytics.retrofit.ServiceCallback;
 import com.microsoft.cognitive.textanalytics.retrofit.ServiceRequestClient;
 
+import org.json.JSONException;
+import org.json.JSONObject;
+
 //import org.apache.http.client.HttpClient;
 //import org.apache.http.client.methods.HttpPost;
 //import org.apache.http.entity.mime.HttpMultipartMode;
@@ -162,7 +165,11 @@ public class MainActivity extends ActionMenuActivity {
     boolean continuousListeningStarted = false;
     SpeechRecognizer reco = null;
 
-
+    private String sessionID;
+    private Integer AseqenceID = 0 ;
+    private Integer IsequenceID = 0;
+    private JSONObject AJson = new JSONObject();
+    private JSONObject IJson = new JSONObject();
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -229,6 +236,8 @@ public class MainActivity extends ActionMenuActivity {
 
                     Toast.makeText(MainActivity.this, "Emotion detection: On", Toast.LENGTH_SHORT).show();
                     imageViewRedDot.setVisibility(View.VISIBLE);
+
+                    get_Session_ID();
                     post_picture();
 
                     //////microphone
@@ -240,6 +249,12 @@ public class MainActivity extends ActionMenuActivity {
     }
 
 
+    private void get_Session_ID(){
+//        sessionID = client.getSessionID();
+//        Log.d("ID",sessionID);
+    }
+
+
     private void post_picture() {
         runnableCode = new Runnable() {
             @Override
@@ -247,7 +262,12 @@ public class MainActivity extends ActionMenuActivity {
                 Log.d("Handlers", "Called on main thread");
                 cameraCaptureStartTime = System.currentTimeMillis();
                 takePicture();
-//
+                IsequenceID += 1;
+                try {
+                    IJson.put("image",IsequenceID);
+                } catch (JSONException e) {
+                    e.printStackTrace();
+                }
                 timerHandler.postDelayed(this, 1000);
             }
         };
@@ -281,6 +301,12 @@ public class MainActivity extends ActionMenuActivity {
                         sentimentResult = sentiment.getSentimentScore();
                         if (preSpeechResult != s && mlistener != null) {
                             mlistener.onChanged(s);
+                            AseqenceID += 1;
+                            try {
+                                AJson.put("audio",AseqenceID);
+                            } catch (JSONException e) {
+                                e.printStackTrace();
+                            }
                         }
                     }
                 }
@@ -305,6 +331,7 @@ public class MainActivity extends ActionMenuActivity {
             @Override
             public void run() {
                 client.uploadScore("0.5");
+                client.uploadScore(String.valueOf(AJson));
                 setTextListener(new TextChangeListener() {
                     @Override
                     public void onChanged(Object taskResult) {
@@ -494,7 +521,8 @@ public class MainActivity extends ActionMenuActivity {
                         if (null != output) {
                             Log.d("emotion", file.getAbsolutePath());
 //                            client.uploadImage(file);
-//                            detectAndFrame(storedBitmap);
+//                            client.uploadScore(String.valueOf(IJson));
+                            detectAndFrame(storedBitmap);
                             output.flush();
                             output.close();
                             Log.d("emotion", "saved image");
