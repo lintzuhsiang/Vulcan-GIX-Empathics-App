@@ -1,6 +1,7 @@
 package com.example.myapplication;
 
 import androidx.annotation.NonNull;
+import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 
 import android.Manifest;
@@ -15,10 +16,12 @@ import android.hardware.camera2.params.StreamConfigurationMap;
 import android.media.Image;
 import android.media.ImageReader;
 import android.os.AsyncTask;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.HandlerThread;
 import android.os.Handler;
+import android.telephony.TelephonyManager;
 import android.text.TextUtils;
 import android.util.Log;
 import android.util.Size;
@@ -84,6 +87,7 @@ import org.json.JSONObject;
 
 
 public class MainActivity extends ActionMenuActivity {
+//public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "MainActivity";
 
@@ -165,18 +169,22 @@ public class MainActivity extends ActionMenuActivity {
     boolean continuousListeningStarted = false;
     SpeechRecognizer reco = null;
 
-    private String sessionID;
-    private Integer AseqenceID = 0 ;
+    public static String sessionId;
+    public static String deviceId;
+    private Integer AseqenceID = 0;
     private Integer IsequenceID = 0;
+    private Integer SsequenceID = 0;
     private JSONObject AJson = new JSONObject();
+    private JSONObject SJson = new JSONObject();
     private JSONObject IJson = new JSONObject();
+    User user = new User();
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         textureView = findViewById(R.id.textureView);
         assert textureView != null;
-        textureView.setSurfaceTextureListener(textureListener);
+//        textureView.setSurfaceTextureListener(textureListener);
         takePictureButton = findViewById(R.id.btn_takepicture);
         assert takePictureButton != null;
         fileDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES).getAbsolutePath();
@@ -188,7 +196,20 @@ public class MainActivity extends ActionMenuActivity {
         Toast.makeText(MainActivity.this, "Tap to start.", Toast.LENGTH_LONG).show();
 
 //        mRequest = new ServiceRequestClient(SentimentSubscriptionKey);
-
+        TelephonyManager telephonyManager1 = (TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (checkSelfPermission(Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED) {
+                // TODO: Consider calling
+                //    Activity#requestPermissions
+                // here to request the missing permissions, and then overriding
+                //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
+                //                                          int[] grantResults)
+                // to handle the case where the user grants the permission. See the documentation
+                // for Activity#requestPermissions for more details.
+                return;
+            }
+        }
+        user.setDeviceId(telephonyManager1.getDeviceId());
 
         try {
             speechConfig = SpeechConfig.fromSubscription(SpeechSubscriptionKey, SpeechRegion);
@@ -204,7 +225,7 @@ public class MainActivity extends ActionMenuActivity {
                 if (continuousListeningStarted) {
                     if (reco != null) {
                         final Future<Void> task = reco.stopContinuousRecognitionAsync();
-                        microphoneStream.stopRecording();
+                        //microphoneStream.stopRecording();
 
                         setSSTCompletedListener(task, new OnTaskCompletedListener<Void>() {
                             @Override
@@ -237,8 +258,11 @@ public class MainActivity extends ActionMenuActivity {
                     Toast.makeText(MainActivity.this, "Emotion detection: On", Toast.LENGTH_SHORT).show();
                     imageViewRedDot.setVisibility(View.VISIBLE);
 
-                    get_Session_ID();
-                    post_picture();
+//                    get_Session_ID();
+                    Print();
+
+                    Log.d("NewID3",sessionId);
+//                    post_picture();
 
                     //////microphone
                     post_mic();
@@ -247,21 +271,63 @@ public class MainActivity extends ActionMenuActivity {
             }
         });
     }
-
-
-    private void get_Session_ID(){
-//        sessionID = client.getSessionID();
-//        Log.d("ID",sessionID);
+    private static ExecutorService mm_executorService;
+    static {
+        mm_executorService = Executors.newCachedThreadPool();
     }
 
+//    static String SessionID = "zero";
+//    String SessionID2 = "zero";
+    String print = " ";
+    private void Print(){
+//        user = client.getUser();
 
-    private void post_picture() {
+//        Future<String> get_Session_ID = mm_executorService.submit(new Callable<String>() {
+//        @Override
+//        public String call() throws Exception {
+//            client.getSessionID();
+//            setTextListener(new TextChangeListener(){
+//                @Override
+//                public void onChanged(Object result) {
+//                    Log.d("NewID",SessionID);
+//                    SessionID2 = SessionID;
+//
+//                }
+//            });
+//            Log.d("NewID2",SessionID2);
+//            return SessionID2;
+//        }
+//    });
+
+
+
+
+    }
+
+//        Log.d("ID","main get Session ID");
+////        client.healthCheck();
+//        Log.d("ID",SessionID);
+//
+//        setTextListener(new TextChangeListener(){
+//            @Override
+//            public void onChanged(Object result) {
+//                Log.d("IDDD",SessionID);
+//
+//            }
+//        });
+//        return SessionID;
+//        client.uploadScore("0.5");
+
+
+
+
+    private void post_picture() {    //jpg file, session_id, seq, device_id, longitude, Latitude
         runnableCode = new Runnable() {
             @Override
             public void run() {
                 Log.d("Handlers", "Called on main thread");
                 cameraCaptureStartTime = System.currentTimeMillis();
-                takePicture();
+//                takePicture();
                 IsequenceID += 1;
                 try {
                     IJson.put("image",IsequenceID);
@@ -277,7 +343,8 @@ public class MainActivity extends ActionMenuActivity {
 
     private void post_mic() {
         speechSentiment();
-        uploadScore();
+        Log.d("session",sessionId);
+        uploadAudioandScore();
     }
 
     private String speechSentiment() {
@@ -301,9 +368,10 @@ public class MainActivity extends ActionMenuActivity {
                         sentimentResult = sentiment.getSentimentScore();
                         if (preSpeechResult != s && mlistener != null) {
                             mlistener.onChanged(s);
-                            AseqenceID += 1;
+//                            AseqenceID += 1;
+                            SsequenceID += 1;
                             try {
-                                AJson.put("audio",AseqenceID);
+                                SJson.put("score",SsequenceID);
                             } catch (JSONException e) {
                                 e.printStackTrace();
                             }
@@ -326,18 +394,17 @@ public class MainActivity extends ActionMenuActivity {
         return sentimentResult;
     }
 
-    void uploadScore() {
-        ss_executorService.scheduleWithFixedDelay(new Runnable() {
+    void uploadAudioandScore() {
+        ss_executorService.scheduleWithFixedDelay(new Runnable() {  //AJSON id value needs to be update either one second per time or until result comes out
             @Override
             public void run() {
-                client.uploadScore("0.5");
-                client.uploadScore(String.valueOf(AJson));
+                client.uploadScore(String.valueOf(SJson),"0,5");
                 setTextListener(new TextChangeListener() {
                     @Override
                     public void onChanged(Object taskResult) {
                         sentiment.afterTextchange((String) taskResult);
                         sentimentResult = sentiment.getSentimentScore();
-                        client.uploadScore(sentimentResult);
+                        client.uploadScore(String.valueOf(SJson),sentimentResult);
                     }
                 });
                 fileDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES).getAbsolutePath();
@@ -345,6 +412,8 @@ public class MainActivity extends ActionMenuActivity {
                 try {
                     Log.d("path",fileDir);
                     microphoneStream.startRecording(fileDir+"/"+currTime);
+//                    client.uploadAudio(File(fileDir+"/"+currTime+".wav"));
+
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
@@ -378,15 +447,16 @@ public class MainActivity extends ActionMenuActivity {
 
 
     private TextChangeListener mlistener;
-
+    public static TextChangeListener klistener;
 
 
     private void setTextListener(TextChangeListener listener) {
         mlistener = listener;
+        klistener = listener;
     }
 
 
-    private interface TextChangeListener<T> {
+    public interface TextChangeListener<T> {
         void onChanged(T result);
     }
 
@@ -396,398 +466,397 @@ public class MainActivity extends ActionMenuActivity {
         s_executorService = Executors.newScheduledThreadPool(1);
     }
 
-
-    TextureView.SurfaceTextureListener textureListener = new TextureView.SurfaceTextureListener() {
-        @Override
-        public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
-            openCamera();
-        }
-
-        @Override
-        public void onSurfaceTextureSizeChanged(SurfaceTexture surface, int width, int height) {
-            // Transform you image captured size according to the surface width and height
-        }
-
-        @Override
-        public boolean onSurfaceTextureDestroyed(SurfaceTexture surface) {
-            return false;
-        }
-
-        @Override
-        public void onSurfaceTextureUpdated(SurfaceTexture surface) {
-        }
-    };
-    private final CameraDevice.StateCallback stateCallback = new CameraDevice.StateCallback() {
-        @Override
-        public void onOpened(CameraDevice camera) {
-            //This is called when the camera is open
-            Log.e(TAG, "onOpened");
-            cameraDevice = camera;
-//            createCameraPreview();
-        }
-
-        @Override
-        public void onDisconnected(CameraDevice camera) {
-            cameraDevice.close();
-        }
-
-        @Override
-        public void onError(CameraDevice camera, int error) {
-            cameraDevice.close();
-            cameraDevice = null;
-        }
-    };
-
-
-    private File takePicture() {
-        if (null == cameraDevice) {
-            Log.e(TAG, "cameraDevice is null");
-            return null;
-        }
-        CameraManager manager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
-        try {
-            CameraCharacteristics characteristics = manager.getCameraCharacteristics(cameraDevice.getId());
-            float maxzoom = (characteristics.get(CameraCharacteristics.SCALER_AVAILABLE_MAX_DIGITAL_ZOOM)) * 10;
-
-            Size[] jpegSizes = null;
-            if (characteristics != null) {
-                jpegSizes = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP).getOutputSizes(ImageFormat.JPEG);
-            }
-            int width = 640;
-            int height = 480;
-            if (jpegSizes != null && 0 < jpegSizes.length) {
-                width = jpegSizes[0].getWidth();
-                height = jpegSizes[0].getHeight();
-            }
-
-            reader = ImageReader.newInstance(width, height, ImageFormat.JPEG, 1);
-            List<Surface> outputSurfaces = new ArrayList<Surface>(2);
-
-            outputSurfaces.add(reader.getSurface());
-            outputSurfaces.add(new Surface(textureView.getSurfaceTexture()));
-            final CaptureRequest.Builder captureBuilder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
-            captureBuilder.addTarget(reader.getSurface());
-//            captureBuilder.set(CaptureRequest.SCALER_CROP_REGION, zoom);
-            captureBuilder.set(CaptureRequest.CONTROL_MODE, CameraMetadata.CONTROL_MODE_AUTO);
-            // Orientation
-            int rotation = getWindowManager().getDefaultDisplay().getRotation();
-            captureBuilder.set(CaptureRequest.JPEG_ORIENTATION, ORIENTATIONS.get(rotation));
-
-            SimpleDateFormat formatter = new SimpleDateFormat("yyyy_MM_dd_HH_mm_ss", Locale.US);
-            Date now = new Date();
-
-            file = new File(getExternalFilesDir(Environment.DIRECTORY_PICTURES) + "/" + formatter.format(now) + ".jpg");
-
-
-            ImageReader.OnImageAvailableListener readerListener = new ImageReader.OnImageAvailableListener() {
-                @Override
-                public void onImageAvailable(ImageReader reader) {
-                    Image image = null;
-                    try {
-                        image = reader.acquireLatestImage();
-
-                        ByteBuffer buffer = image.getPlanes()[0].getBuffer();
-                        byte[] bytes = new byte[buffer.capacity()];
-                        buffer.get(bytes);
-                        faceAPIStartTime = System.currentTimeMillis();
-
-                        if (isExternalStorageWritable()) {
-                            save(bytes);
-                        }
-                    } catch (FileNotFoundException e) {
-                        e.printStackTrace();
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    } finally {
-                        if (image != null) {
-                            image.close();
-                            Log.d("emotion", "image close");
-                        }
-                    }
-                }
-
-                //save image to device
-                private void save(byte[] bytes) throws IOException {
-                    FileOutputStream output = null;
-                    storedBitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.length, null);
-                    Matrix mat = new Matrix();
-                    mat.postRotate(270);
-                    storedBitmap = Bitmap.createBitmap(storedBitmap, 0, 0, storedBitmap.getWidth(), storedBitmap.getHeight(), mat, true);
-                    try {
-                        output = new FileOutputStream(file);
-                        storedBitmap.compress(Bitmap.CompressFormat.JPEG, 100, output);
-//                    detectAndFrame(storedBitmap);
-                    } finally {
-                        if (null != output) {
-                            Log.d("emotion", file.getAbsolutePath());
-//                            client.uploadImage(file);
-//                            client.uploadScore(String.valueOf(IJson));
-                            detectAndFrame(storedBitmap);
-                            output.flush();
-                            output.close();
-                            Log.d("emotion", "saved image");
-                        }
-                    }
-                }
-            };
-
-            reader.setOnImageAvailableListener(readerListener, mBackgroundHandler);
-
-            final CameraCaptureSession.CaptureCallback captureListener = new CameraCaptureSession.CaptureCallback() {
-                @Override
-                public void onCaptureCompleted(CameraCaptureSession session, CaptureRequest request, TotalCaptureResult result) {
-                    super.onCaptureCompleted(session, request, result);
-                    Log.d("emotion", String.format("takePicture end %s", cameraCaptureStartTime - System.currentTimeMillis()));
-//                    createCameraPreview();
-                }
-            };
-            cameraDevice.createCaptureSession(outputSurfaces, new CameraCaptureSession.StateCallback() {
-                @Override
-                public void onConfigured(CameraCaptureSession session) {
-                    try {
-                        session.capture(captureBuilder.build(), captureListener, mBackgroundHandler);
-                    } catch (CameraAccessException e) {
-                        e.printStackTrace();
-                    }
-                }
-
-                @Override
-                public void onConfigureFailed(CameraCaptureSession session) {
-                }
-            }, mBackgroundHandler);
-        } catch (CameraAccessException e) {
-            e.printStackTrace();
-        }
-        return file;
-    }
-
-    private void openCamera() {
-        CameraManager manager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
-        try {
-            cameraId = manager.getCameraIdList()[0];
-            CameraCharacteristics characteristics = manager.getCameraCharacteristics(cameraId);
-            StreamConfigurationMap map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
-            assert map != null;
-            imageDimension = map.getOutputSizes(SurfaceTexture.class)[0];
-            // Add permission for camera and let user grant the permission
-            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-                ActivityCompat.requestPermissions(MainActivity.this, new String[]{Manifest.permission.CAMERA, Manifest.permission.WRITE_EXTERNAL_STORAGE}, REQUEST_CAMERA_PERMISSION);
-                return;
-            }
-            manager.openCamera(cameraId, stateCallback, null);
-        } catch (CameraAccessException e) {
-            e.printStackTrace();
-        }
-    }
-
-    private void closeCamera() {
-        if (null != cameraDevice) {
-            cameraDevice.close();
-            cameraDevice = null;
-        }
-        if (null != reader) {
-            reader.close();
-            reader = null;
-        }
-    }
-
-
-    @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-        if (requestCode == REQUEST_CAMERA_PERMISSION) {
-            if (grantResults[0] == PackageManager.PERMISSION_DENIED) {
-                // close the app
-                Toast.makeText(MainActivity.this, "Sorry!!!, you can't use this app without granting permission", Toast.LENGTH_LONG).show();
-                finish();
-            }
-        }
-    }
-
-    @Override
-    protected void onResume() {
-        super.onResume();
-        Log.e(TAG, "onResume");
-        startBackgroundThread();
-        if (textureView.isAvailable()) {
-            openCamera();
-        } else {
-            textureView.setSurfaceTextureListener(textureListener);
-        }
-    }
-
-    @Override
-    protected void onPause() {
-        Log.e(TAG, "onPause");
-        closeCamera();
-        stopBackgroundThread();
-        super.onPause();
-    }
-
-
-    protected void startBackgroundThread() {
-        mBackgroundThread = new HandlerThread("Camera Background");
-        mBackgroundThread.start();
-        mBackgroundHandler = new Handler(mBackgroundThread.getLooper());
-    }
-
-    protected void stopBackgroundThread() {
-        mBackgroundThread.quitSafely();
-        try {
-            mBackgroundThread.join();
-            mBackgroundThread = null;
-            mBackgroundHandler = null;
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-    }
-
-    // detect capture frame and call Face API
-    private void detectAndFrame(final Bitmap bitmap) {
-
-
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        bitmap.compress(Bitmap.CompressFormat.JPEG, 100, outputStream);
-        ByteArrayInputStream inputStream =
-                new ByteArrayInputStream(outputStream.toByteArray());
-
-        AsyncTask<InputStream, String, Face[]> detectTask =
-                new AsyncTask<InputStream, String, Face[]>() {
-                    String exceptionMessage = "";
-
-                    @Override
-                    protected Face[] doInBackground(InputStream... params) {
-                        try {
-                            publishProgress("Detecting...");
-                            Face[] result = faceServiceClient.detect(
-                                    params[0],
-                                    true,         // returnFaceId
-                                    false,        // returnFaceLandmarks
-                                    //null          // returnFaceAttributes:
-                                    new FaceServiceClient.FaceAttributeType[]{
-                                            FaceServiceClient.FaceAttributeType.Age,
-                                            FaceServiceClient.FaceAttributeType.Emotion
-                                    }
-                            );
-                            if (result == null) {
-                                publishProgress(
-                                        "Detection Finished. Nothing detected");
-                                return null;
-                            }
-                            publishProgress(String.format(
-                                    "Detection Finished. %d face(s) detected",
-                                    result.length));
-                            return result;
-                        } catch (Exception e) {
-                            exceptionMessage = String.format(
-                                    "Detection failed: %s", e.getMessage());
-                            return null;
-                        }
-                    }
-
-                    @Override
-                    protected void onPreExecute() {
-                        //TODO: show progress dialog
-//                        detectionProgressDialog.show();
-                    }
-
-                    @Override
-                    protected void onProgressUpdate(String... progress) {
-                        //TODO: update progress
-//                        detectionProgressDialog.setMessage(progress[0]);
-                    }
-
-                    @Override
-                    protected void onPostExecute(Face[] result) {
-                        //TODO: update face frames
-//                        detectionProgressDialog.dismiss();
-
-                        if (!exceptionMessage.equals("")) {
-//                            showError(exceptionMessage);
-                        }
-                        if (result == null) return;
 //
-                        Log.d("emotion", String.format("detect frame ends %s", faceAPIStartTime - System.currentTimeMillis()));
-                        imageView.setImageResource(showFaceResult(result));//,imageResource));
-                        imageView.setVisibility(View.VISIBLE);
-                    }
-                };
-
-        detectTask.execute(inputStream);
-    }
-
-    // get Face Result and return responding icon
-    private int showFaceResult(Face[] faces) {
-        Log.d("emotion", "Inside showFaceResult function");
-        int imageResource = 0;
-
-        String emo = "";
-        if (faces != null) {
-            Log.d("emotion", "face numbers %s" + faces.length);
-
-            for (Face face : faces) {
-                FaceRectangle faceRectangle = face.faceRectangle;
-//                System.out.print(face.faceAttributes.emotion);
-                Emotion faceEmotion = face.faceAttributes.emotion;
-                double anger = faceEmotion.anger;
-                double contempt = faceEmotion.contempt;
-                double disgust = faceEmotion.disgust;
-                double fear = faceEmotion.fear;
-                double happiness = faceEmotion.happiness;
-                double neutral = faceEmotion.neutral;
-                double sadness = faceEmotion.sadness;
-                double surprise = faceEmotion.surprise;
-                double[] emoArrVal = {anger, contempt, disgust, fear, happiness, neutral, sadness, surprise};
-                String[] emoArr = {"anger", "contempt", "disgust", "fear", "happiness", "neutral", "sadness", "surprise"};
-                int maxEmo = getMaxValue(emoArrVal);
-                emo = emoArr[maxEmo];
-
-            }
-        } else {
-//            paint.setTextSize(400);
-//            canvas.drawText("no face detected",75,385,paint);
-//            canvas.translate(0,200);
-        }
-        Log.d("emotion", emo);
-
-        switch (emo) {
-            default:
-                imageResource = android.R.color.transparent;
-                break;
-            case "neutral":
-                imageResource = getResources().getIdentifier("@drawable/neutral", "drawable", getPackageName());
-                break;
-
-            case "happiness":
-                imageResource = getResources().getIdentifier("@drawable/happy", "drawable", getPackageName());
-                break;
-
-            case "sadness":
-                imageResource = getResources().getIdentifier("@drawable/sad", "drawable", getPackageName());
-                break;
-        }
-        Log.d("imageResource", String.valueOf(imageResource));
-        return imageResource;
-    }
-
-
-    public static int getMaxValue(double[] numbers) {
-        double maxValue = numbers[0];
-        int maxIndex = 0;
-
-        for (int i = 0; i < numbers.length; i++) {
-            if (numbers[i] > maxValue) {
-                maxValue = numbers[i];
-                maxIndex = i;
-            }
-        }
-        return maxIndex;
-    }
-
-    private boolean isExternalStorageWritable() {
-
-        return Environment.MEDIA_MOUNTED.equals(Environment.getExternalStorageState());
-
-    }
+//    TextureView.SurfaceTextureListener textureListener = new TextureView.SurfaceTextureListener() {
+//        @Override
+//        public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
+//            openCamera();
+//        }
+//
+//        @Override
+//        public void onSurfaceTextureSizeChanged(SurfaceTexture surface, int width, int height) {
+//            // Transform you image captured size according to the surface width and height
+//        }
+//
+//        @Override
+//        public boolean onSurfaceTextureDestroyed(SurfaceTexture surface) {
+//            return false;
+//        }
+//
+//        @Override
+//        public void onSurfaceTextureUpdated(SurfaceTexture surface) {
+//        }
+//    };
+//    private final CameraDevice.StateCallback stateCallback = new CameraDevice.StateCallback() {
+//        @Override
+//        public void onOpened(CameraDevice camera) {
+//            //This is called when the camera is open
+//            Log.e(TAG, "onOpened");
+//            cameraDevice = camera;
+////            createCameraPreview();
+//        }
+//
+//        @Override
+//        public void onDisconnected(CameraDevice camera) {
+//            cameraDevice.close();
+//        }
+//
+//        @Override
+//        public void onError(CameraDevice camera, int error) {
+//            cameraDevice.close();
+//            cameraDevice = null;
+//        }
+//    };
+//
+//
+//    private File takePicture() {
+//        if (null == cameraDevice) {
+//            Log.e(TAG, "cameraDevice is null");
+//            return null;
+//        }
+//        CameraManager manager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
+//        try {
+//            CameraCharacteristics characteristics = manager.getCameraCharacteristics(cameraDevice.getId());
+//            float maxzoom = (characteristics.get(CameraCharacteristics.SCALER_AVAILABLE_MAX_DIGITAL_ZOOM)) * 10;
+//
+//            Size[] jpegSizes = null;
+//            if (characteristics != null) {
+//                jpegSizes = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP).getOutputSizes(ImageFormat.JPEG);
+//            }
+//            int width = 640;
+//            int height = 480;
+//            if (jpegSizes != null && 0 < jpegSizes.length) {
+//                width = jpegSizes[0].getWidth();
+//                height = jpegSizes[0].getHeight();
+//            }
+//
+//            reader = ImageReader.newInstance(width, height, ImageFormat.JPEG, 1);
+//            List<Surface> outputSurfaces = new ArrayList<Surface>(2);
+//
+//            outputSurfaces.add(reader.getSurface());
+//            outputSurfaces.add(new Surface(textureView.getSurfaceTexture()));
+//            final CaptureRequest.Builder captureBuilder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
+//            captureBuilder.addTarget(reader.getSurface());
+////            captureBuilder.set(CaptureRequest.SCALER_CROP_REGION, zoom);
+//            captureBuilder.set(CaptureRequest.CONTROL_MODE, CameraMetadata.CONTROL_MODE_AUTO);
+//            // Orientation
+//            int rotation = getWindowManager().getDefaultDisplay().getRotation();
+//            captureBuilder.set(CaptureRequest.JPEG_ORIENTATION, ORIENTATIONS.get(rotation));
+//
+//            SimpleDateFormat formatter = new SimpleDateFormat("yyyy_MM_dd_HH_mm_ss", Locale.US);
+//            Date now = new Date();
+//
+//            file = new File(getExternalFilesDir(Environment.DIRECTORY_PICTURES) + "/" + formatter.format(now) + ".jpg");
+//
+//
+//            ImageReader.OnImageAvailableListener readerListener = new ImageReader.OnImageAvailableListener() {
+//                @Override
+//                public void onImageAvailable(ImageReader reader) {
+//                    Image image = null;
+//                    try {
+//                        image = reader.acquireLatestImage();
+//
+//                        ByteBuffer buffer = image.getPlanes()[0].getBuffer();
+//                        byte[] bytes = new byte[buffer.capacity()];
+//                        buffer.get(bytes);
+//                        faceAPIStartTime = System.currentTimeMillis();
+//
+//                        if (isExternalStorageWritable()) {
+//                            save(bytes);
+//                        }
+//                    } catch (FileNotFoundException e) {
+//                        e.printStackTrace();
+//                    } catch (IOException e) {
+//                        e.printStackTrace();
+//                    } finally {
+//                        if (image != null) {
+//                            image.close();
+//                            Log.d("emotion", "image close");
+//                        }
+//                    }
+//                }
+//
+//                //save image to device
+//                private void save(byte[] bytes) throws IOException {
+//                    FileOutputStream output = null;
+//                    storedBitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.length, null);
+//                    Matrix mat = new Matrix();
+//                    mat.postRotate(270);
+//                    storedBitmap = Bitmap.createBitmap(storedBitmap, 0, 0, storedBitmap.getWidth(), storedBitmap.getHeight(), mat, true);
+//                    try {
+//                        output = new FileOutputStream(file);
+//                        storedBitmap.compress(Bitmap.CompressFormat.JPEG, 100, output);
+////                    detectAndFrame(storedBitmap);
+//                    } finally {
+//                        if (null != output) {
+//                            Log.d("emotion", file.getAbsolutePath());
+////                            client.uploadImage(String.valueof(IJson),file);
+//                            detectAndFrame(storedBitmap);
+//                            output.flush();
+//                            output.close();
+//                            Log.d("emotion", "saved image");
+//                        }
+//                    }
+//                }
+//            };
+//
+//            reader.setOnImageAvailableListener(readerListener, mBackgroundHandler);
+//
+//            final CameraCaptureSession.CaptureCallback captureListener = new CameraCaptureSession.CaptureCallback() {
+//                @Override
+//                public void onCaptureCompleted(CameraCaptureSession session, CaptureRequest request, TotalCaptureResult result) {
+//                    super.onCaptureCompleted(session, request, result);
+//                    Log.d("emotion", String.format("takePicture end %s", cameraCaptureStartTime - System.currentTimeMillis()));
+////                    createCameraPreview();
+//                }
+//            };
+//            cameraDevice.createCaptureSession(outputSurfaces, new CameraCaptureSession.StateCallback() {
+//                @Override
+//                public void onConfigured(CameraCaptureSession session) {
+//                    try {
+//                        session.capture(captureBuilder.build(), captureListener, mBackgroundHandler);
+//                    } catch (CameraAccessException e) {
+//                        e.printStackTrace();
+//                    }
+//                }
+//
+//                @Override
+//                public void onConfigureFailed(CameraCaptureSession session) {
+//                }
+//            }, mBackgroundHandler);
+//        } catch (CameraAccessException e) {
+//            e.printStackTrace();
+//        }
+//        return file;
+//    }
+//
+//    private void openCamera() {
+//        CameraManager manager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
+//        try {
+//            cameraId = manager.getCameraIdList()[0];
+//            CameraCharacteristics characteristics = manager.getCameraCharacteristics(cameraId);
+//            StreamConfigurationMap map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
+//            assert map != null;
+//            imageDimension = map.getOutputSizes(SurfaceTexture.class)[0];
+//            // Add permission for camera and let user grant the permission
+//            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+//                ActivityCompat.requestPermissions(MainActivity.this, new String[]{Manifest.permission.CAMERA, Manifest.permission.WRITE_EXTERNAL_STORAGE}, REQUEST_CAMERA_PERMISSION);
+//                return;
+//            }
+//            manager.openCamera(cameraId, stateCallback, null);
+//        } catch (CameraAccessException e) {
+//            e.printStackTrace();
+//        }
+//    }
+//
+//    private void closeCamera() {
+//        if (null != cameraDevice) {
+//            cameraDevice.close();
+//            cameraDevice = null;
+//        }
+//        if (null != reader) {
+//            reader.close();
+//            reader = null;
+//        }
+//    }
+//
+//
+//    @Override
+//    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+//        if (requestCode == REQUEST_CAMERA_PERMISSION) {
+//            if (grantResults[0] == PackageManager.PERMISSION_DENIED) {
+//                // close the app
+//                Toast.makeText(MainActivity.this, "Sorry!!!, you can't use this app without granting permission", Toast.LENGTH_LONG).show();
+//                finish();
+//            }
+//        }
+//    }
+//
+//    @Override
+//    protected void onResume() {
+//        super.onResume();
+//        Log.e(TAG, "onResume");
+//        startBackgroundThread();
+//        if (textureView.isAvailable()) {
+//            openCamera();
+//        } else {
+//            textureView.setSurfaceTextureListener(textureListener);
+//        }
+//    }
+//
+//    @Override
+//    protected void onPause() {
+//        Log.e(TAG, "onPause");
+//        closeCamera();
+//        stopBackgroundThread();
+//        super.onPause();
+//    }
+//
+//
+//    protected void startBackgroundThread() {
+//        mBackgroundThread = new HandlerThread("Camera Background");
+//        mBackgroundThread.start();
+//        mBackgroundHandler = new Handler(mBackgroundThread.getLooper());
+//    }
+//
+//    protected void stopBackgroundThread() {
+//        mBackgroundThread.quitSafely();
+//        try {
+//            mBackgroundThread.join();
+//            mBackgroundThread = null;
+//            mBackgroundHandler = null;
+//        } catch (InterruptedException e) {
+//            e.printStackTrace();
+//        }
+//    }
+//
+//    // detect capture frame and call Face API
+//    private void detectAndFrame(final Bitmap bitmap) {
+//
+//
+//        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+//        bitmap.compress(Bitmap.CompressFormat.JPEG, 100, outputStream);
+//        ByteArrayInputStream inputStream =
+//                new ByteArrayInputStream(outputStream.toByteArray());
+//
+//        AsyncTask<InputStream, String, Face[]> detectTask =
+//                new AsyncTask<InputStream, String, Face[]>() {
+//                    String exceptionMessage = "";
+//
+//                    @Override
+//                    protected Face[] doInBackground(InputStream... params) {
+//                        try {
+//                            publishProgress("Detecting...");
+//                            Face[] result = faceServiceClient.detect(
+//                                    params[0],
+//                                    true,         // returnFaceId
+//                                    false,        // returnFaceLandmarks
+//                                    //null          // returnFaceAttributes:
+//                                    new FaceServiceClient.FaceAttributeType[]{
+//                                            FaceServiceClient.FaceAttributeType.Age,
+//                                            FaceServiceClient.FaceAttributeType.Emotion
+//                                    }
+//                            );
+//                            if (result == null) {
+//                                publishProgress(
+//                                        "Detection Finished. Nothing detected");
+//                                return null;
+//                            }
+//                            publishProgress(String.format(
+//                                    "Detection Finished. %d face(s) detected",
+//                                    result.length));
+//                            return result;
+//                        } catch (Exception e) {
+//                            exceptionMessage = String.format(
+//                                    "Detection failed: %s", e.getMessage());
+//                            return null;
+//                        }
+//                    }
+//
+//                    @Override
+//                    protected void onPreExecute() {
+//                        //TODO: show progress dialog
+////                        detectionProgressDialog.show();
+//                    }
+//
+//                    @Override
+//                    protected void onProgressUpdate(String... progress) {
+//                        //TODO: update progress
+////                        detectionProgressDialog.setMessage(progress[0]);
+//                    }
+//
+//                    @Override
+//                    protected void onPostExecute(Face[] result) {
+//                        //TODO: update face frames
+////                        detectionProgressDialog.dismiss();
+//
+//                        if (!exceptionMessage.equals("")) {
+////                            showError(exceptionMessage);
+//                        }
+//                        if (result == null) return;
+////
+//                        Log.d("emotion", String.format("detect frame ends %s", faceAPIStartTime - System.currentTimeMillis()));
+//                        imageView.setImageResource(showFaceResult(result));//,imageResource));
+//                        imageView.setVisibility(View.VISIBLE);
+//                    }
+//                };
+//
+//        detectTask.execute(inputStream);
+//    }
+//
+//    // get Face Result and return responding icon
+//    private int showFaceResult(Face[] faces) {
+//        Log.d("emotion", "Inside showFaceResult function");
+//        int imageResource = 0;
+//
+//        String emo = "";
+//        if (faces != null) {
+//            Log.d("emotion", "face numbers %s" + faces.length);
+//
+//            for (Face face : faces) {
+//                FaceRectangle faceRectangle = face.faceRectangle;
+////                System.out.print(face.faceAttributes.emotion);
+//                Emotion faceEmotion = face.faceAttributes.emotion;
+//                double anger = faceEmotion.anger;
+//                double contempt = faceEmotion.contempt;
+//                double disgust = faceEmotion.disgust;
+//                double fear = faceEmotion.fear;
+//                double happiness = faceEmotion.happiness;
+//                double neutral = faceEmotion.neutral;
+//                double sadness = faceEmotion.sadness;
+//                double surprise = faceEmotion.surprise;
+//                double[] emoArrVal = {anger, contempt, disgust, fear, happiness, neutral, sadness, surprise};
+//                String[] emoArr = {"anger", "contempt", "disgust", "fear", "happiness", "neutral", "sadness", "surprise"};
+//                int maxEmo = getMaxValue(emoArrVal);
+//                emo = emoArr[maxEmo];
+//
+//            }
+//        } else {
+////            paint.setTextSize(400);
+////            canvas.drawText("no face detected",75,385,paint);
+////            canvas.translate(0,200);
+//        }
+//        Log.d("emotion", emo);
+//
+//        switch (emo) {
+//            default:
+//                imageResource = android.R.color.transparent;
+//                break;
+//            case "neutral":
+//                imageResource = getResources().getIdentifier("@drawable/neutral", "drawable", getPackageName());
+//                break;
+//
+//            case "happiness":
+//                imageResource = getResources().getIdentifier("@drawable/happy", "drawable", getPackageName());
+//                break;
+//
+//            case "sadness":
+//                imageResource = getResources().getIdentifier("@drawable/sad", "drawable", getPackageName());
+//                break;
+//        }
+//        Log.d("imageResource", String.valueOf(imageResource));
+//        return imageResource;
+//    }
+//
+//
+//    public static int getMaxValue(double[] numbers) {
+//        double maxValue = numbers[0];
+//        int maxIndex = 0;
+//
+//        for (int i = 0; i < numbers.length; i++) {
+//            if (numbers[i] > maxValue) {
+//                maxValue = numbers[i];
+//                maxIndex = i;
+//            }
+//        }
+//        return maxIndex;
+//    }
+//
+//    private boolean isExternalStorageWritable() {
+//
+//        return Environment.MEDIA_MOUNTED.equals(Environment.getExternalStorageState());
+//
+//    }
 
 
 }
