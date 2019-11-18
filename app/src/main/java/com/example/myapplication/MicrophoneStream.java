@@ -36,6 +36,7 @@ import static java.lang.String.*;
  */
 public class MicrophoneStream extends PullAudioInputStreamCallback {
     private final static int SAMPLE_RATE = 16000;
+    private static final String TAG = "Empethics";
     //    private final AudioStreamFormat format;
     private AudioRecord recorder;
     static public int  bufferSizeInBytes;
@@ -63,7 +64,7 @@ public class MicrophoneStream extends PullAudioInputStreamCallback {
     private void initMic() {
 
         this.bufferSizeInBytes = AudioRecord.getMinBufferSize(SAMPLE_RATE,AudioFormat.CHANNEL_IN_MONO,AudioFormat.ENCODING_PCM_16BIT)*5;
-        Log.d("mic", "initMic");
+        Log.d(TAG, "initMic");
         this.recorder = new AudioRecord(MediaRecorder.AudioSource.VOICE_RECOGNITION,16000,AudioFormat.CHANNEL_IN_MONO,AudioFormat.ENCODING_PCM_16BIT, this.bufferSizeInBytes);
         this.recorder.startRecording();
 
@@ -71,12 +72,10 @@ public class MicrophoneStream extends PullAudioInputStreamCallback {
 
     public void startRecording(final String currTime) throws IOException {
         this.currTime = currTime;
-
-        Log.d("mic",currTime);
-        Log.d("mic", "saveRecording");
+        Log.d(TAG, "saveRecording");
+        Log.d(TAG,currTime);
         rawfile = getFile("raw");
 
-        System.out.println(rawfile.getClass());
         long audiostarttime = System.currentTimeMillis();
 //        final byte data[] = new byte[this.bufferSizeInBytes];
 //        this.isRecording = isRecording;
@@ -106,14 +105,13 @@ public class MicrophoneStream extends PullAudioInputStreamCallback {
         }catch(IOException e){
             e.printStackTrace();
         }
-        Log.d("mic","after runnable");
     }
 
     public void saveRecording(){
         File wavfile = getFile("wav");
         try {
             rawToWave(rawfile,wavfile);
-            Log.d("file","save Recording");
+            Log.d(TAG,"save Recording");
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -128,12 +126,10 @@ public class MicrophoneStream extends PullAudioInputStreamCallback {
         }
 
         this.isRecording = false;
-        Log.d("mic", "stopRecording");
-        Log.d("mic", valueOf(isRecording));
 
         recorder.stop();
         recorder.release();
-        Log.d("mic","stop recording");
+        Log.d(TAG,"stop recording");
     }
 
     private void rawToWave(final File rawFile, final File waveFile) throws IOException {

@@ -21,6 +21,7 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.os.HandlerThread;
 import android.os.Handler;
+import android.provider.Settings;
 import android.telephony.TelephonyManager;
 import android.text.TextUtils;
 import android.util.Log;
@@ -89,7 +90,7 @@ import org.json.JSONObject;
 public class MainActivity extends ActionMenuActivity {
 //public class MainActivity extends AppCompatActivity {
 
-    private static final String TAG = "MainActivity";
+    private static final String TAG = "Empethics";
 
     //layout
     private Button takePictureButton;
@@ -171,13 +172,12 @@ public class MainActivity extends ActionMenuActivity {
 
     public static String sessionId;
     public static String deviceId;
-    private Integer AseqenceID = 0;
+    private Integer AsequenceID = 0;
     private Integer IsequenceID = 0;
     private Integer SsequenceID = 0;
-    private JSONObject AJson = new JSONObject();
-    private JSONObject SJson = new JSONObject();
-    private JSONObject IJson = new JSONObject();
+    private String android_id;
     User user = new User();
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -195,21 +195,12 @@ public class MainActivity extends ActionMenuActivity {
 
         Toast.makeText(MainActivity.this, "Tap to start.", Toast.LENGTH_LONG).show();
 
-//        mRequest = new ServiceRequestClient(SentimentSubscriptionKey);
-        TelephonyManager telephonyManager1 = (TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            if (checkSelfPermission(Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED) {
-                // TODO: Consider calling
-                //    Activity#requestPermissions
-                // here to request the missing permissions, and then overriding
-                //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-                //                                          int[] grantResults)
-                // to handle the case where the user grants the permission. See the documentation
-                // for Activity#requestPermissions for more details.
-                return;
-            }
-        }
-        user.setDeviceId(telephonyManager1.getDeviceId());
+//
+        android_id = Settings.Secure.getString(getContext().getContentResolver(),
+                Settings.Secure.ANDROID_ID);
+        user.setDeviceId(android_id);
+        Log.d(TAG,"deviceId");
+        Log.d(TAG,user.getDeviceId());
 
         try {
             speechConfig = SpeechConfig.fromSubscription(SpeechSubscriptionKey, SpeechRegion);
@@ -217,20 +208,23 @@ public class MainActivity extends ActionMenuActivity {
             System.out.println(ex.getMessage());
             return;
         }
-
+        client.getSessionID();
 
         takePictureButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 if (continuousListeningStarted) {
+                    Log.d(TAG,"continuousListeningStarted..");
+                    Log.d(TAG, String.valueOf(continuousListeningStarted));
                     if (reco != null) {
                         final Future<Void> task = reco.stopContinuousRecognitionAsync();
-                        //microphoneStream.stopRecording();
+
+                        microphoneStream.stopRecording();
 
                         setSSTCompletedListener(task, new OnTaskCompletedListener<Void>() {
                             @Override
                             public void onCompleted(Void result) {
-                                Log.i("mic", "Continuous recognition stopped.");
+                                Log.i(TAG, "Continuous recognition stopped.");
                             }
                         });
                         continuousListeningStarted = false;
@@ -248,25 +242,20 @@ public class MainActivity extends ActionMenuActivity {
                     imageView.setVisibility(View.INVISIBLE);
 
 //                    imageViewRedDot.setVisibility(View.INVISIBLE);
-                    Log.d("Handlers", "Stop runnable on main thread");
+                    Log.d(TAG, "Stop runnable on main thread");
 
                 } else {
-
+                    Log.d(TAG,"continuousListeningStarted");
+                    Log.d(TAG, String.valueOf(continuousListeningStarted));
                     int imageResource = getResources().getIdentifier("@drawable/reddot", "drawable", getPackageName());
                     imageViewRedDot.setImageResource(imageResource);
 
                     Toast.makeText(MainActivity.this, "Emotion detection: On", Toast.LENGTH_SHORT).show();
                     imageViewRedDot.setVisibility(View.VISIBLE);
 
-//                    get_Session_ID();
-                    Print();
-
-                    Log.d("NewID3",sessionId);
+//
 //                    post_picture();
-
-                    //////microphone
                     post_mic();
-
                 }
             }
         });
@@ -276,9 +265,6 @@ public class MainActivity extends ActionMenuActivity {
         mm_executorService = Executors.newCachedThreadPool();
     }
 
-//    static String SessionID = "zero";
-//    String SessionID2 = "zero";
-    String print = " ";
     private void Print(){
 //        user = client.getUser();
 
@@ -299,25 +285,7 @@ public class MainActivity extends ActionMenuActivity {
 //        }
 //    });
 
-
-
-
     }
-
-//        Log.d("ID","main get Session ID");
-////        client.healthCheck();
-//        Log.d("ID",SessionID);
-//
-//        setTextListener(new TextChangeListener(){
-//            @Override
-//            public void onChanged(Object result) {
-//                Log.d("IDDD",SessionID);
-//
-//            }
-//        });
-//        return SessionID;
-//        client.uploadScore("0.5");
-
 
 
 
@@ -325,15 +293,14 @@ public class MainActivity extends ActionMenuActivity {
         runnableCode = new Runnable() {
             @Override
             public void run() {
-                Log.d("Handlers", "Called on main thread");
+                Log.d(TAG, "Called on main thread");
                 cameraCaptureStartTime = System.currentTimeMillis();
+//                IsequenceID += 1;
+//                Log.d(TAG, "IsequenceID");
+//                Log.d(TAG, String.valueOf(IsequenceID));
+//
 //                takePicture();
-                IsequenceID += 1;
-                try {
-                    IJson.put("image",IsequenceID);
-                } catch (JSONException e) {
-                    e.printStackTrace();
-                }
+
                 timerHandler.postDelayed(this, 1000);
             }
         };
@@ -343,38 +310,38 @@ public class MainActivity extends ActionMenuActivity {
 
     private void post_mic() {
         speechSentiment();
-        Log.d("session",sessionId);
         uploadAudioandScore();
     }
 
     private String speechSentiment() {
 
-        AudioConfig audioInput = null;
+        AudioConfig audioInput;
         try {
-            Log.i("mic", "Continuous recognition started.");
+            Log.i(TAG, "Continuous recognition started1.");
             audioInput = AudioConfig.fromStreamInput(createMicrophoneStream());
             reco = new SpeechRecognizer(speechConfig, audioInput);
+            Log.i(TAG, "Continuous recognition started2.");
 
             final String currTime = fileDir + "/" + DateFormat.format(new Date());
             final boolean isRecording = true;
 //            microphoneStream.startRecording(isRecording, currTime);
+            Log.i(TAG, "Continuous recognition started3.");
+
             reco.recognized.addEventListener(new EventHandler<SpeechRecognitionEventArgs>() {
                 @Override
                 public void onEvent(Object o, SpeechRecognitionEventArgs speechRecognitionResultEventArgs) {
                     final String s = speechRecognitionResultEventArgs.getResult().getText();
-                    Log.i("text", "Final result received: " + s);
+                    Log.i(TAG, "Final result received: " + s);
                     if (s.length() > 10) {
                         sentiment.afterTextchange(s);
                         sentimentResult = sentiment.getSentimentScore();
                         if (preSpeechResult != s && mlistener != null) {
                             mlistener.onChanged(s);
-//                            AseqenceID += 1;
-                            SsequenceID += 1;
-                            try {
-                                SJson.put("score",SsequenceID);
-                            } catch (JSONException e) {
-                                e.printStackTrace();
-                            }
+//                            SsequenceID += 1;
+                            Log.d(TAG,"text onChange detect");
+                            Log.d(TAG,"SsequenceID");
+                            Log.d(TAG, String.valueOf(SsequenceID));
+
                         }
                     }
                 }
@@ -395,26 +362,47 @@ public class MainActivity extends ActionMenuActivity {
     }
 
     void uploadAudioandScore() {
-        ss_executorService.scheduleWithFixedDelay(new Runnable() {  //AJSON id value needs to be update either one second per time or until result comes out
+        ss_executorService.scheduleWithFixedDelay(new Runnable() {
             @Override
             public void run() {
-                client.uploadScore(String.valueOf(SJson),"0,5");
+
+                IsequenceID += 1;
+                Log.d(TAG, "IsequenceID");
+                Log.d(TAG, String.valueOf(IsequenceID));
+
+                takePicture();
+
+
+
+
+                SsequenceID += 1;
+                AsequenceID += 1;
+                Log.d(TAG,"SsequenceID");
+                Log.d(TAG, String.valueOf(SsequenceID));
+                Log.d(TAG,"AsequenceID");
+                Log.d(TAG, String.valueOf(AsequenceID));
+                client.uploadScore(String.valueOf(SsequenceID),"0.5");
+//
                 setTextListener(new TextChangeListener() {
                     @Override
                     public void onChanged(Object taskResult) {
                         sentiment.afterTextchange((String) taskResult);
                         sentimentResult = sentiment.getSentimentScore();
-                        client.uploadScore(String.valueOf(SJson),sentimentResult);
+                        Log.d(TAG,"SsequenceID2");
+                        Log.d(TAG, String.valueOf(SsequenceID));
+                        client.uploadScore(String.valueOf(SsequenceID),sentimentResult);
                     }
                 });
                 fileDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES).getAbsolutePath();
                 String currTime = String.valueOf(System.currentTimeMillis());
                 try {
-                    Log.d("path",fileDir);
+                    Log.d(TAG,"uploadAudioandScore microphoneStream");
+                    Log.d(TAG,fileDir);
                     microphoneStream.startRecording(fileDir+"/"+currTime);
-//                    client.uploadAudio(File(fileDir+"/"+currTime+".wav"));
+                    client.uploadAudio(String.valueOf(AsequenceID), new File(fileDir+"/"+currTime+".wav"));
 
                 } catch (IOException e) {
+                    Log.d(TAG, String.valueOf(e));
                     e.printStackTrace();
                 }
             }
@@ -443,7 +431,7 @@ public class MainActivity extends ActionMenuActivity {
         ms_executorService = Executors.newCachedThreadPool();
     }
 
-    ScheduledExecutorService ss_executorService = Executors.newScheduledThreadPool(3);
+    private static ScheduledExecutorService ss_executorService = Executors.newScheduledThreadPool(3);
 
 
     private TextChangeListener mlistener;
@@ -452,7 +440,7 @@ public class MainActivity extends ActionMenuActivity {
 
     private void setTextListener(TextChangeListener listener) {
         mlistener = listener;
-        klistener = listener;
+//        klistener = listener;
     }
 
 
@@ -467,249 +455,249 @@ public class MainActivity extends ActionMenuActivity {
     }
 
 //
-//    TextureView.SurfaceTextureListener textureListener = new TextureView.SurfaceTextureListener() {
-//        @Override
-//        public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
-//            openCamera();
-//        }
-//
-//        @Override
-//        public void onSurfaceTextureSizeChanged(SurfaceTexture surface, int width, int height) {
-//            // Transform you image captured size according to the surface width and height
-//        }
-//
-//        @Override
-//        public boolean onSurfaceTextureDestroyed(SurfaceTexture surface) {
-//            return false;
-//        }
-//
-//        @Override
-//        public void onSurfaceTextureUpdated(SurfaceTexture surface) {
-//        }
-//    };
-//    private final CameraDevice.StateCallback stateCallback = new CameraDevice.StateCallback() {
-//        @Override
-//        public void onOpened(CameraDevice camera) {
-//            //This is called when the camera is open
-//            Log.e(TAG, "onOpened");
-//            cameraDevice = camera;
-////            createCameraPreview();
-//        }
-//
-//        @Override
-//        public void onDisconnected(CameraDevice camera) {
-//            cameraDevice.close();
-//        }
-//
-//        @Override
-//        public void onError(CameraDevice camera, int error) {
-//            cameraDevice.close();
-//            cameraDevice = null;
-//        }
-//    };
-//
-//
-//    private File takePicture() {
-//        if (null == cameraDevice) {
-//            Log.e(TAG, "cameraDevice is null");
-//            return null;
-//        }
-//        CameraManager manager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
-//        try {
-//            CameraCharacteristics characteristics = manager.getCameraCharacteristics(cameraDevice.getId());
-//            float maxzoom = (characteristics.get(CameraCharacteristics.SCALER_AVAILABLE_MAX_DIGITAL_ZOOM)) * 10;
-//
-//            Size[] jpegSizes = null;
-//            if (characteristics != null) {
-//                jpegSizes = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP).getOutputSizes(ImageFormat.JPEG);
-//            }
-//            int width = 640;
-//            int height = 480;
-//            if (jpegSizes != null && 0 < jpegSizes.length) {
-//                width = jpegSizes[0].getWidth();
-//                height = jpegSizes[0].getHeight();
-//            }
-//
-//            reader = ImageReader.newInstance(width, height, ImageFormat.JPEG, 1);
-//            List<Surface> outputSurfaces = new ArrayList<Surface>(2);
-//
-//            outputSurfaces.add(reader.getSurface());
-//            outputSurfaces.add(new Surface(textureView.getSurfaceTexture()));
-//            final CaptureRequest.Builder captureBuilder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
-//            captureBuilder.addTarget(reader.getSurface());
-////            captureBuilder.set(CaptureRequest.SCALER_CROP_REGION, zoom);
-//            captureBuilder.set(CaptureRequest.CONTROL_MODE, CameraMetadata.CONTROL_MODE_AUTO);
-//            // Orientation
-//            int rotation = getWindowManager().getDefaultDisplay().getRotation();
-//            captureBuilder.set(CaptureRequest.JPEG_ORIENTATION, ORIENTATIONS.get(rotation));
-//
-//            SimpleDateFormat formatter = new SimpleDateFormat("yyyy_MM_dd_HH_mm_ss", Locale.US);
-//            Date now = new Date();
-//
-//            file = new File(getExternalFilesDir(Environment.DIRECTORY_PICTURES) + "/" + formatter.format(now) + ".jpg");
+    TextureView.SurfaceTextureListener textureListener = new TextureView.SurfaceTextureListener() {
+        @Override
+        public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
+            openCamera();
+        }
+
+        @Override
+        public void onSurfaceTextureSizeChanged(SurfaceTexture surface, int width, int height) {
+            // Transform you image captured size according to the surface width and height
+        }
+
+        @Override
+        public boolean onSurfaceTextureDestroyed(SurfaceTexture surface) {
+            return false;
+        }
+
+        @Override
+        public void onSurfaceTextureUpdated(SurfaceTexture surface) {
+        }
+    };
+    private final CameraDevice.StateCallback stateCallback = new CameraDevice.StateCallback() {
+        @Override
+        public void onOpened(CameraDevice camera) {
+            //This is called when the camera is open
+            Log.e(TAG, "onOpened");
+            cameraDevice = camera;
+//            createCameraPreview();
+        }
+
+        @Override
+        public void onDisconnected(CameraDevice camera) {
+            cameraDevice.close();
+        }
+
+        @Override
+        public void onError(CameraDevice camera, int error) {
+            cameraDevice.close();
+            cameraDevice = null;
+        }
+    };
 //
 //
-//            ImageReader.OnImageAvailableListener readerListener = new ImageReader.OnImageAvailableListener() {
-//                @Override
-//                public void onImageAvailable(ImageReader reader) {
-//                    Image image = null;
-//                    try {
-//                        image = reader.acquireLatestImage();
-//
-//                        ByteBuffer buffer = image.getPlanes()[0].getBuffer();
-//                        byte[] bytes = new byte[buffer.capacity()];
-//                        buffer.get(bytes);
-//                        faceAPIStartTime = System.currentTimeMillis();
-//
-//                        if (isExternalStorageWritable()) {
-//                            save(bytes);
-//                        }
-//                    } catch (FileNotFoundException e) {
-//                        e.printStackTrace();
-//                    } catch (IOException e) {
-//                        e.printStackTrace();
-//                    } finally {
-//                        if (image != null) {
-//                            image.close();
-//                            Log.d("emotion", "image close");
-//                        }
-//                    }
-//                }
-//
-//                //save image to device
-//                private void save(byte[] bytes) throws IOException {
-//                    FileOutputStream output = null;
-//                    storedBitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.length, null);
-//                    Matrix mat = new Matrix();
-//                    mat.postRotate(270);
-//                    storedBitmap = Bitmap.createBitmap(storedBitmap, 0, 0, storedBitmap.getWidth(), storedBitmap.getHeight(), mat, true);
-//                    try {
-//                        output = new FileOutputStream(file);
-//                        storedBitmap.compress(Bitmap.CompressFormat.JPEG, 100, output);
-////                    detectAndFrame(storedBitmap);
-//                    } finally {
-//                        if (null != output) {
-//                            Log.d("emotion", file.getAbsolutePath());
-////                            client.uploadImage(String.valueof(IJson),file);
+    private File takePicture() {
+        if (null == cameraDevice) {
+            Log.e(TAG, "cameraDevice is null");
+            return null;
+        }
+        CameraManager manager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
+        try {
+            CameraCharacteristics characteristics = manager.getCameraCharacteristics(cameraDevice.getId());
+            float maxzoom = (characteristics.get(CameraCharacteristics.SCALER_AVAILABLE_MAX_DIGITAL_ZOOM)) * 10;
+
+            Size[] jpegSizes = null;
+            if (characteristics != null) {
+                jpegSizes = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP).getOutputSizes(ImageFormat.JPEG);
+            }
+            int width = 640;
+            int height = 480;
+            if (jpegSizes != null && 0 < jpegSizes.length) {
+                width = jpegSizes[0].getWidth();
+                height = jpegSizes[0].getHeight();
+            }
+
+            reader = ImageReader.newInstance(width, height, ImageFormat.JPEG, 1);
+            List<Surface> outputSurfaces = new ArrayList<Surface>(2);
+
+            outputSurfaces.add(reader.getSurface());
+            outputSurfaces.add(new Surface(textureView.getSurfaceTexture()));
+            final CaptureRequest.Builder captureBuilder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
+            captureBuilder.addTarget(reader.getSurface());
+//            captureBuilder.set(CaptureRequest.SCALER_CROP_REGION, zoom);
+            captureBuilder.set(CaptureRequest.CONTROL_MODE, CameraMetadata.CONTROL_MODE_AUTO);
+            // Orientation
+            int rotation = getWindowManager().getDefaultDisplay().getRotation();
+            captureBuilder.set(CaptureRequest.JPEG_ORIENTATION, ORIENTATIONS.get(rotation));
+
+            SimpleDateFormat formatter = new SimpleDateFormat("yyyy_MM_dd_HH_mm_ss", Locale.US);
+            Date now = new Date();
+
+            file = new File(getExternalFilesDir(Environment.DIRECTORY_PICTURES) + "/" + formatter.format(now) + ".jpg");
+
+
+            ImageReader.OnImageAvailableListener readerListener = new ImageReader.OnImageAvailableListener() {
+                @Override
+                public void onImageAvailable(ImageReader reader) {
+                    Image image = null;
+                    try {
+                        image = reader.acquireLatestImage();
+
+                        ByteBuffer buffer = image.getPlanes()[0].getBuffer();
+                        byte[] bytes = new byte[buffer.capacity()];
+                        buffer.get(bytes);
+                        faceAPIStartTime = System.currentTimeMillis();
+
+                        if (isExternalStorageWritable()) {
+                            save(bytes);
+                        }
+                    } catch (FileNotFoundException e) {
+                        e.printStackTrace();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    } finally {
+                        if (image != null) {
+                            image.close();
+                            Log.d(TAG, "image close");
+                        }
+                    }
+                }
+
+                //save image to device
+                private void save(byte[] bytes) throws IOException {
+                    FileOutputStream output = null;
+                    storedBitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.length, null);
+                    Matrix mat = new Matrix();
+                    mat.postRotate(270);
+                    storedBitmap = Bitmap.createBitmap(storedBitmap, 0, 0, storedBitmap.getWidth(), storedBitmap.getHeight(), mat, true);
+                    try {
+                        output = new FileOutputStream(file);
+                        storedBitmap.compress(Bitmap.CompressFormat.JPEG, 100, output);
+//                    detectAndFrame(storedBitmap);
+                    } finally {
+                        if (null != output) {
+                            Log.d(TAG, file.getAbsolutePath());
+                            client.uploadImage(String.valueOf(IsequenceID),file);
 //                            detectAndFrame(storedBitmap);
-//                            output.flush();
-//                            output.close();
-//                            Log.d("emotion", "saved image");
-//                        }
-//                    }
-//                }
-//            };
-//
-//            reader.setOnImageAvailableListener(readerListener, mBackgroundHandler);
-//
-//            final CameraCaptureSession.CaptureCallback captureListener = new CameraCaptureSession.CaptureCallback() {
-//                @Override
-//                public void onCaptureCompleted(CameraCaptureSession session, CaptureRequest request, TotalCaptureResult result) {
-//                    super.onCaptureCompleted(session, request, result);
-//                    Log.d("emotion", String.format("takePicture end %s", cameraCaptureStartTime - System.currentTimeMillis()));
-////                    createCameraPreview();
-//                }
-//            };
-//            cameraDevice.createCaptureSession(outputSurfaces, new CameraCaptureSession.StateCallback() {
-//                @Override
-//                public void onConfigured(CameraCaptureSession session) {
-//                    try {
-//                        session.capture(captureBuilder.build(), captureListener, mBackgroundHandler);
-//                    } catch (CameraAccessException e) {
-//                        e.printStackTrace();
-//                    }
-//                }
-//
-//                @Override
-//                public void onConfigureFailed(CameraCaptureSession session) {
-//                }
-//            }, mBackgroundHandler);
-//        } catch (CameraAccessException e) {
-//            e.printStackTrace();
-//        }
-//        return file;
-//    }
-//
-//    private void openCamera() {
-//        CameraManager manager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
-//        try {
-//            cameraId = manager.getCameraIdList()[0];
-//            CameraCharacteristics characteristics = manager.getCameraCharacteristics(cameraId);
-//            StreamConfigurationMap map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
-//            assert map != null;
-//            imageDimension = map.getOutputSizes(SurfaceTexture.class)[0];
-//            // Add permission for camera and let user grant the permission
-//            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-//                ActivityCompat.requestPermissions(MainActivity.this, new String[]{Manifest.permission.CAMERA, Manifest.permission.WRITE_EXTERNAL_STORAGE}, REQUEST_CAMERA_PERMISSION);
-//                return;
-//            }
-//            manager.openCamera(cameraId, stateCallback, null);
-//        } catch (CameraAccessException e) {
-//            e.printStackTrace();
-//        }
-//    }
-//
-//    private void closeCamera() {
-//        if (null != cameraDevice) {
-//            cameraDevice.close();
-//            cameraDevice = null;
-//        }
-//        if (null != reader) {
-//            reader.close();
-//            reader = null;
-//        }
-//    }
-//
-//
-//    @Override
-//    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-//        if (requestCode == REQUEST_CAMERA_PERMISSION) {
-//            if (grantResults[0] == PackageManager.PERMISSION_DENIED) {
-//                // close the app
-//                Toast.makeText(MainActivity.this, "Sorry!!!, you can't use this app without granting permission", Toast.LENGTH_LONG).show();
-//                finish();
-//            }
-//        }
-//    }
-//
-//    @Override
-//    protected void onResume() {
-//        super.onResume();
-//        Log.e(TAG, "onResume");
-//        startBackgroundThread();
-//        if (textureView.isAvailable()) {
-//            openCamera();
-//        } else {
-//            textureView.setSurfaceTextureListener(textureListener);
-//        }
-//    }
-//
-//    @Override
-//    protected void onPause() {
-//        Log.e(TAG, "onPause");
+                            output.flush();
+                            output.close();
+                            Log.d(TAG, "saved image");
+                        }
+                    }
+                }
+            };
+
+            reader.setOnImageAvailableListener(readerListener, mBackgroundHandler);
+
+            final CameraCaptureSession.CaptureCallback captureListener = new CameraCaptureSession.CaptureCallback() {
+                @Override
+                public void onCaptureCompleted(CameraCaptureSession session, CaptureRequest request, TotalCaptureResult result) {
+                    super.onCaptureCompleted(session, request, result);
+                    Log.d(TAG, String.format("takePicture end %s", cameraCaptureStartTime - System.currentTimeMillis()));
+//                    createCameraPreview();
+                }
+            };
+            cameraDevice.createCaptureSession(outputSurfaces, new CameraCaptureSession.StateCallback() {
+                @Override
+                public void onConfigured(CameraCaptureSession session) {
+                    try {
+                        session.capture(captureBuilder.build(), captureListener, mBackgroundHandler);
+                    } catch (CameraAccessException e) {
+                        e.printStackTrace();
+                    }
+                }
+
+                @Override
+                public void onConfigureFailed(CameraCaptureSession session) {
+                }
+            }, mBackgroundHandler);
+        } catch (CameraAccessException e) {
+            e.printStackTrace();
+        }
+        return file;
+    }
+
+    private void openCamera() {
+        CameraManager manager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
+        try {
+            cameraId = manager.getCameraIdList()[0];
+            CameraCharacteristics characteristics = manager.getCameraCharacteristics(cameraId);
+            StreamConfigurationMap map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
+            assert map != null;
+            imageDimension = map.getOutputSizes(SurfaceTexture.class)[0];
+            // Add permission for camera and let user grant the permission
+            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(MainActivity.this, new String[]{Manifest.permission.CAMERA, Manifest.permission.WRITE_EXTERNAL_STORAGE}, REQUEST_CAMERA_PERMISSION);
+                return;
+            }
+            manager.openCamera(cameraId, stateCallback, null);
+        } catch (CameraAccessException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void closeCamera() {
+        if (null != cameraDevice) {
+            cameraDevice.close();
+            cameraDevice = null;
+        }
+        if (null != reader) {
+            reader.close();
+            reader = null;
+        }
+    }
+
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        if (requestCode == REQUEST_CAMERA_PERMISSION) {
+            if (grantResults[0] == PackageManager.PERMISSION_DENIED) {
+                // close the app
+                Toast.makeText(MainActivity.this, "Sorry!!!, you can't use this app without granting permission", Toast.LENGTH_LONG).show();
+                finish();
+            }
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        Log.e(TAG, "onResume");
+        startBackgroundThread();
+        if (textureView.isAvailable()) {
+            openCamera();
+        } else {
+            textureView.setSurfaceTextureListener(textureListener);
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        Log.e(TAG, "onPause");
 //        closeCamera();
 //        stopBackgroundThread();
-//        super.onPause();
-//    }
-//
-//
-//    protected void startBackgroundThread() {
-//        mBackgroundThread = new HandlerThread("Camera Background");
-//        mBackgroundThread.start();
-//        mBackgroundHandler = new Handler(mBackgroundThread.getLooper());
-//    }
-//
-//    protected void stopBackgroundThread() {
-//        mBackgroundThread.quitSafely();
-//        try {
-//            mBackgroundThread.join();
-//            mBackgroundThread = null;
-//            mBackgroundHandler = null;
-//        } catch (InterruptedException e) {
-//            e.printStackTrace();
-//        }
-//    }
-//
+        super.onPause();
+    }
+
+
+    protected void startBackgroundThread() {
+        mBackgroundThread = new HandlerThread("Camera Background");
+        mBackgroundThread.start();
+        mBackgroundHandler = new Handler(mBackgroundThread.getLooper());
+    }
+
+    protected void stopBackgroundThread() {
+        mBackgroundThread.quitSafely();
+        try {
+            mBackgroundThread.join();
+            mBackgroundThread = null;
+            mBackgroundHandler = null;
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+
 //    // detect capture frame and call Face API
 //    private void detectAndFrame(final Bitmap bitmap) {
 //
@@ -852,11 +840,11 @@ public class MainActivity extends ActionMenuActivity {
 //        return maxIndex;
 //    }
 //
-//    private boolean isExternalStorageWritable() {
-//
-//        return Environment.MEDIA_MOUNTED.equals(Environment.getExternalStorageState());
-//
-//    }
+    private boolean isExternalStorageWritable() {
+
+        return Environment.MEDIA_MOUNTED.equals(Environment.getExternalStorageState());
+
+    }
 
 
 }
