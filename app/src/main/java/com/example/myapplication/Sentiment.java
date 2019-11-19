@@ -20,6 +20,7 @@ import retrofit2.Call;
 import retrofit2.Response;
 
 public class Sentiment {
+    private static final String TAG = "Empethics/Sentiment";
     public ServiceRequestClient mRequest;
     private String SentimentSubscriptionKey="bd009590e8754a29b599a89eb0102f55";
     private static final String SpeechSubscriptionKey = "d122e91d2df24ce889a13695542564c2";
@@ -32,7 +33,6 @@ public class Sentiment {
     private MicrophoneStream microphoneStream;
     public String sentimentResult = "";
     public void afterTextchange(String textInputString) {
-        Log.d("emotion","afterText Change");
         mDocIncludeLanguage = new RequestDocIncludeLanguage();
         mDocIncludeLanguage.setId("1");
         mDocIncludeLanguage.setLanguage("en");
@@ -44,16 +44,15 @@ public class Sentiment {
 //java native interface
     public String getSentimentScore() {
         mRequest = new ServiceRequestClient(SentimentSubscriptionKey);
-        Log.d("emotion","getSentimentScore");
         ServiceCallback mSentimentCallback = new ServiceCallback(mRequest.getRetrofit()) {
             @Override
             public void onResponse(Call call, Response response) {
                 super.onResponse(call, response);
                 SentimentResponse sentimentResponse = (SentimentResponse) response.body();
-                Log.d("text", String.valueOf(sentimentResponse.getDocuments()));
+                Log.d(TAG, String.valueOf(sentimentResponse.getDocuments()));
 
                 if (response != null && response.isSuccessful()) {
-                    Log.d("emotion", String.valueOf(sentimentResponse.getDocuments().get(0).getScore()));
+                    Log.d(TAG, String.valueOf(sentimentResponse.getDocuments().get(0).getScore()));
                     sentimentResult = sentimentResponse.getDocuments().get(0).getScore().toString();
                 }
             }
@@ -61,14 +60,14 @@ public class Sentiment {
             @Override
             public void onFailure(Call call, Throwable t) {
                 super.onFailure(call, t);
-                Log.d("emotion","Fail");
+                Log.d(TAG,"Fail");
             }
         };
 
         try {
             mSentimentCall = mRequest.getSentimentAsync(mTextIncludeLanguageRequest, mSentimentCallback);
         } catch (IllegalArgumentException e) {
-            Log.d("emotion","Fail in catch");
+            Log.d(TAG,"Fail in catch");
             System.out.println(e);
         }
         return sentimentResult;

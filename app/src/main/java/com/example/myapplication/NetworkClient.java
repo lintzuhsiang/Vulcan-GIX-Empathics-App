@@ -29,7 +29,7 @@ import retrofit2.http.Query;
 
 public class NetworkClient {
     private static final String BASE_URL = "http://empathics.azurewebsites.net";
-    private static final String TAG = "Empethics";
+    private static final String TAG = "Empethics/NetworkClient";
     //    private static final String BASE_URL =  "http://20.190.61.212:8000";
     private static Retrofit retrofit;
 
@@ -46,6 +46,7 @@ public class NetworkClient {
         return retrofit;
 
     }
+
     public String sessionId;
     User user = new User();
 
@@ -80,6 +81,7 @@ public class NetworkClient {
 //        });
 //        return sessionID;
     }
+
     String server;
     Callback callback = new Callback() {
         @Override
@@ -92,6 +94,7 @@ public class NetworkClient {
 
         }
     };
+
     public interface UploadAPIs {
 
 //        @GET("/get_session_id")
@@ -104,7 +107,7 @@ public class NetworkClient {
         Call<ResponseBody> healthCheck();
 
 
-//        @POST("/post_senti_socre")
+        //        @POST("/post_senti_socre")
 //        Call<ResponseBody> uploadScore(@Query("session_id") String session_id, @Query("sequence_id") String sequence_id, @Query("device_id") String device_id, @Query("score") String score);
         @FormUrlEncoded
         @POST("/post_senti_score")
@@ -117,7 +120,7 @@ public class NetworkClient {
 
         @Multipart
         @POST("/post_mic")
-        Call<ResponseBody> uploadAudio(@Part MultipartBody.Part audio,@Part("session_id") RequestBody session_id, @Part("description") RequestBody description);
+        Call<ResponseBody> uploadAudio(@Part MultipartBody.Part audio, @Part("session_id") RequestBody session_id, @Part("description") RequestBody description);
 
     }
 
@@ -138,34 +141,36 @@ public class NetworkClient {
 //    }
 
     public void uploadImage(String sequence_Id, File file) {
-        Retrofit retrofit = NetworkClient.getRetrofitClient(this);
 
+        final File file2 = new File("/storage/emulated/0/Android/data/com.example.myapplication/files/Pictures/2019_11_18_23_16_28.jpg");
+        Retrofit retrofit = NetworkClient.getRetrofitClient(this);
         UploadAPIs uploadAPIs = retrofit.create(UploadAPIs.class);
 
-
-        RequestBody fileReqBody = RequestBody.create(MediaType.parse("image/*"), file);
+        RequestBody fileReqBody = RequestBody.create(MediaType.parse("image/*"), file2);
         MultipartBody.Part part = MultipartBody.Part.createFormData("image", file.getName(), fileReqBody);
 
         RequestBody description = RequestBody.create(MediaType.parse("text/plain"), "image-type");
-        RequestBody session_id = RequestBody.create(MediaType.parse("text/plain"),User.sessionId);
-        RequestBody device_id = RequestBody.create(MediaType.parse("text/plain"),User.deviceId);
-        RequestBody lontitude = RequestBody.create(MediaType.parse("text/plain"),"0");
-        RequestBody latitude = RequestBody.create(MediaType.parse("text/plain"),"0");
-        RequestBody sequence_id = RequestBody.create(MediaType.parse("text/plain"),sequence_Id);
+        RequestBody session_id = RequestBody.create(MediaType.parse("text/plain"), User.sessionId);
+        RequestBody device_id = RequestBody.create(MediaType.parse("text/plain"), User.deviceId);
+        RequestBody lontitude = RequestBody.create(MediaType.parse("text/plain"), "0");
+        RequestBody latitude = RequestBody.create(MediaType.parse("text/plain"), "0");
+        RequestBody sequence_id = RequestBody.create(MediaType.parse("text/plain"), sequence_Id);
 
 
-
-        Call call = uploadAPIs.uploadImage(part,session_id,device_id,sequence_id, lontitude,latitude,description);
+        Call call = uploadAPIs.uploadImage(part, session_id, device_id, sequence_id, lontitude, latitude, description);
         call.enqueue(new Callback<ResponseBody>() {
             @Override
             public void onResponse(Call<ResponseBody> call, Response<ResponseBody> response) {
 
                 Log.d(TAG, "upLoadImage");
-                try {
-                    Log.d(TAG, String.valueOf(response.body().string()));
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
+                Log.d(TAG, String.valueOf(response.code()));
+
+//                try {
+//                    Log.d(TAG, String.valueOf(response.code()));
+////                    Log.d(TAG, String.valueOf(response.body().string()));
+//                } catch (IOException e) {
+//                    e.printStackTrace();
+//                }
             }
 
             @Override
@@ -179,8 +184,8 @@ public class NetworkClient {
     }
 
     public void uploadScore(String sequence_Id, String score_) {
-        Log.d(TAG,"upload score");
-        Log.d(TAG,score_);
+        Log.d(TAG, "upload score");
+        Log.d(TAG, score_);
         Retrofit retrofit = NetworkClient.getRetrofitClient(this);
         UploadAPIs uploadAPIs = retrofit.create(UploadAPIs.class);
 
@@ -188,7 +193,7 @@ public class NetworkClient {
 //        RequestBody sequence_id = RequestBody.create(MediaType.parse("text/plain"), sequence_Id);
 //        RequestBody device_id = RequestBody.create(MediaType.parse("text/plain"), User.deviceId);
 //        RequestBody score = RequestBody.create(MediaType.parse("text/plain"), score_);
-        Call call = uploadAPIs.uploadScore(user.sessionId,sequence_Id,user.deviceId,score_);
+        Call call = uploadAPIs.uploadScore(user.sessionId, sequence_Id, user.deviceId, score_);
 
         call.enqueue(new Callback<ResponseBody>() {
             @Override
@@ -210,7 +215,7 @@ public class NetworkClient {
 
     }
 
-    public void uploadAudio(String sequence_Id,File file) {
+    public void uploadAudio(String sequence_Id, File file) {
         Retrofit retrofit = NetworkClient.getRetrofitClient(this);
 
         UploadAPIs uploadAPIs = retrofit.create(UploadAPIs.class);
@@ -242,9 +247,6 @@ public class NetworkClient {
     }
 
 
-
-
-
     public void getSessionID() {
         Retrofit retrofit = NetworkClient.getRetrofitClient(this);
         UploadAPIs uploadAPIs = retrofit.create(UploadAPIs.class);
@@ -255,9 +257,18 @@ public class NetworkClient {
             public void onResponse(Call<ResponseBody> call, Response<ResponseBody> response) {
                 Log.d(TAG, String.valueOf(response.code()));
                 try {
+                    Log.d(TAG, "getSessionID");
+
                     sessionId = response.body().string();
                     user.setSessionId(sessionId);
+
+//                    if(resultListener!=null){
+//                        resultListener.onComplete(sessionId);
+//                    }
+
                 } catch (IOException e) {
+                    Log.d(TAG, "getSessionID2");
+
                     e.printStackTrace();
                 }
 //                MainActivity.sessionId = sessionId;
@@ -287,13 +298,14 @@ public class NetworkClient {
 //
     }
 
-    private interface responseListener<T> {
-        String onComplete(T result);
+    public interface ResponseListener {
+        void onComplete(String result);
     }
 
-    public responseListener resultListener;
+    public ResponseListener resultListener;
 
-    private void getResponseListener(responseListener listener) {
+    public void setResponseListener(ResponseListener listener) {
+
         resultListener = listener;
     }
 

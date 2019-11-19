@@ -5,7 +5,7 @@ import android.util.Log;
 public class User {
     public static String sessionId;
     public static String deviceId;
-    private static String TAG = "Empethics";
+    private static String TAG = "Empethics/User";
     public User(){
 
     }

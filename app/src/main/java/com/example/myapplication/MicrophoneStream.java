@@ -36,12 +36,12 @@ import static java.lang.String.*;
  */
 public class MicrophoneStream extends PullAudioInputStreamCallback {
     private final static int SAMPLE_RATE = 16000;
-    private static final String TAG = "Empethics";
+    private static final String TAG = "Empethics/MicrophoneStream";
     //    private final AudioStreamFormat format;
     private AudioRecord recorder;
-    static public int  bufferSizeInBytes;
+    static public int bufferSizeInBytes;
     boolean isRecording;
-    String currTime;
+    private String currTime;
     private File rawfile;
 
     public MicrophoneStream() {
@@ -52,7 +52,7 @@ public class MicrophoneStream extends PullAudioInputStreamCallback {
     @Override
     public int read(byte[] bytes) {
         long ret = this.recorder.read(bytes, 0, bytes.length);
-        return (int)ret;
+        return (int) ret;
     }
 
     @Override
@@ -63,73 +63,67 @@ public class MicrophoneStream extends PullAudioInputStreamCallback {
 
     private void initMic() {
 
-        this.bufferSizeInBytes = AudioRecord.getMinBufferSize(SAMPLE_RATE,AudioFormat.CHANNEL_IN_MONO,AudioFormat.ENCODING_PCM_16BIT)*5;
+        this.bufferSizeInBytes = AudioRecord.getMinBufferSize(SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT) * 20;
         Log.d(TAG, "initMic");
-        this.recorder = new AudioRecord(MediaRecorder.AudioSource.VOICE_RECOGNITION,16000,AudioFormat.CHANNEL_IN_MONO,AudioFormat.ENCODING_PCM_16BIT, this.bufferSizeInBytes);
+        this.recorder = new AudioRecord(MediaRecorder.AudioSource.VOICE_RECOGNITION, 16000, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, this.bufferSizeInBytes);
         this.recorder.startRecording();
 
     }
 
-    public void startRecording(final String currTime) throws IOException {
+    public void StartRecording(final String currTime) throws IOException {
         this.currTime = currTime;
-        Log.d(TAG, "saveRecording");
-        Log.d(TAG,currTime);
+        Log.d(TAG, currTime);
         rawfile = getFile("raw");
 
         long audiostarttime = System.currentTimeMillis();
-//        final byte data[] = new byte[this.bufferSizeInBytes];
-//        this.isRecording = isRecording;
+
         short[] mBuffer = new short[this.bufferSizeInBytes];
-
-
 
         DataOutputStream stream = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(rawfile)));
 
-//        if (stream != null){
-        while(System.currentTimeMillis() - audiostarttime < 1000){
+        while (System.currentTimeMillis() - audiostarttime < 1000) {
 //
-            double sum = 0;
             int readSize = this.recorder.read(mBuffer, 0, mBuffer.length);
             for (int i = 0; i < readSize; i++) {
                 stream.writeShort(mBuffer[i]);
-                sum += mBuffer[i] * mBuffer[i];
-            }
-            if (readSize > 0) {
-                final double amplitude = sum / readSize;
             }
         }
-        try{
+        try {
             saveRecording();
             stream.flush();
             stream.close();
-        }catch(IOException e){
-            e.printStackTrace();
-        }
-    }
-
-    public void saveRecording(){
-        File wavfile = getFile("wav");
-        try {
-            rawToWave(rawfile,wavfile);
-            Log.d(TAG,"save Recording");
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
-    public void stopRecording(){
+    public void saveRecording() {
         File wavfile = getFile("wav");
-        try {
-            rawToWave(rawfile,wavfile);
-        } catch (IOException e) {
-            e.printStackTrace();
+        if (rawfile != null) {
+            try {
+                rawToWave(rawfile, wavfile);
+                Log.d(TAG, "save Recording");
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    public void stopRecording() {
+        File wavfile = getFile("wav");
+        if (rawfile != null) {
+            try {
+                rawToWave(rawfile, wavfile);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
 
         this.isRecording = false;
 
         recorder.stop();
         recorder.release();
-        Log.d(TAG,"stop recording");
+        Log.d(TAG, "stop recording");
     }
 
     private void rawToWave(final File rawFile, final File waveFile) throws IOException {
@@ -177,6 +171,7 @@ public class MicrophoneStream extends PullAudioInputStreamCallback {
         }
 
     }
+
     private void writeInt(final DataOutputStream output, final int value) throws IOException {
         output.write(value >> 0);
         output.write(value >> 8);
@@ -194,6 +189,7 @@ public class MicrophoneStream extends PullAudioInputStreamCallback {
             output.write(value.charAt(i));
         }
     }
+
     private File getFile(final String suffix) {
         return new File(this.currTime + "." + suffix);
     }
