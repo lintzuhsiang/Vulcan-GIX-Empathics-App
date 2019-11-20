@@ -54,6 +54,8 @@ import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -61,6 +63,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
 
@@ -189,15 +192,14 @@ public class MainActivity extends ActionMenuActivity {
 //        textureView.setSurfaceTextureListener(textureListener);
         takePictureButton = findViewById(R.id.btn_takepicture);
         assert takePictureButton != null;
+
         fileDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES).getAbsolutePath();
 
         imageView = findViewById(R.id.imageView);
         imageViewRedDot = findViewById(R.id.imageView2);
 
-
         Toast.makeText(MainActivity.this, "Tap to start.", Toast.LENGTH_LONG).show();
 
-//
         android_id = Settings.Secure.getString(getContext().getContentResolver(),
                 Settings.Secure.ANDROID_ID);
         user.setDeviceId(android_id);
@@ -217,7 +219,6 @@ public class MainActivity extends ActionMenuActivity {
 //                sessionID = result;
 //            }
 //        });
-
 
         takePictureButton.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -243,13 +244,12 @@ public class MainActivity extends ActionMenuActivity {
 
 
                     Toast.makeText(MainActivity.this, "Emotion detection: Off", Toast.LENGTH_SHORT).show();
-                    timerHandler.removeCallbacks(runnableCode);
+//                    timerHandler.removeCallbacks(runnableCode);
 
                     int imageResource = getResources().getIdentifier("@drawable/pause", "drawable", getPackageName());
                     imageViewRedDot.setImageResource(imageResource);
                     imageView.setVisibility(View.INVISIBLE);
 
-//                    imageViewRedDot.setVisibility(View.INVISIBLE);
                     Log.d(TAG, "Stop runnable on main thread");
 
                 } else {
@@ -261,7 +261,6 @@ public class MainActivity extends ActionMenuActivity {
                     Toast.makeText(MainActivity.this, "Emotion detection: On", Toast.LENGTH_SHORT).show();
                     imageViewRedDot.setVisibility(View.VISIBLE);
 
-//
                     SpeechSentimentInit();
                     UploadToServer();
 
@@ -271,7 +270,7 @@ public class MainActivity extends ActionMenuActivity {
     }
 
     private void SpeechSentimentInit() {
-        Log.d(TAG,"SpeechSentimentInit");
+        Log.d(TAG, "SpeechSentimentInit");
         AudioConfig audioInput;
         try {
             audioInput = AudioConfig.fromStreamInput(createMicrophoneStream());
@@ -284,11 +283,11 @@ public class MainActivity extends ActionMenuActivity {
                     final String s = speechRecognitionResultEventArgs.getResult().getText();
                     Log.i(TAG, "Final result received: " + s);
                     if (s.length() > 1) {
-                        sentiment.afterTextchange(s);
-                        sentimentResult = sentiment.getSentimentScore();
+//                        sentiment.afterTextchange(s);
+//                        sentimentResult = sentiment.getSentimentScore();
+                        Log.d(TAG, "text onChange detect " + sentimentResult);
                         if (preSpeechResult != s && mlistener != null) {
                             mlistener.onChanged(s);
-                            Log.d(TAG, "text onChange detect");
                             Log.d(TAG, "SsequenceID");
                             Log.d(TAG, String.valueOf(SsequenceID));
 
@@ -309,7 +308,7 @@ public class MainActivity extends ActionMenuActivity {
             System.out.println(ex.getMessage());
         }
     }
-
+    //Upload post_pic, post_senti_score, post_audio to web server periodically
     void UploadToServer() {
         ss_executorService.scheduleWithFixedDelay(new Runnable() {
             @Override
@@ -325,10 +324,20 @@ public class MainActivity extends ActionMenuActivity {
                     Log.d(TAG, String.valueOf(SsequenceID));
                     Log.d(TAG, "AsequenceID");
                     Log.d(TAG, String.valueOf(AsequenceID));
+
+                    //take picture and send to cloud
                     takePicture();
 
-                    //client.uploadScore(String.valueOf(SsequenceID), "0.5");
-//
+                    //sleep
+                    try {
+                        Thread.sleep(500);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+
+                    //upload score 0.5 if not getting result from speech-to-text API
+                    //update score from TextListener and update the score to cloud
+                    client.uploadScore(String.valueOf(SsequenceID), "0.5");
                     setTextListener(new TextChangeListener() {
                         @Override
                         public void onChanged(Object taskResult) {
@@ -336,10 +345,21 @@ public class MainActivity extends ActionMenuActivity {
                             sentimentResult = sentiment.getSentimentScore();
                             Log.d(TAG, "SsequenceID2");
                             Log.d(TAG, String.valueOf(SsequenceID));
-                            //client.uploadScore(String.valueOf(SsequenceID), sentimentResult);
+                            client.uploadScore(String.valueOf(SsequenceID), sentimentResult);
                         }
                     });
+
+                    //sleep
+                    try {
+                        Thread.sleep(100);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+
+                    //File path
                     fileDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES).getAbsolutePath();
+
+                    //microphone streaming recording and upload audio to server
                     try {
                         Log.d(TAG, "uploadAudioandScore microphoneStream");
                         Date now = new Date();
@@ -350,11 +370,13 @@ public class MainActivity extends ActionMenuActivity {
                         Log.d(TAG, String.valueOf(e));
                         e.printStackTrace();
                     }
+
                 } else {
 
                 }
+
             }
-        }, 0, 1000, TimeUnit.MILLISECONDS);
+        }, 0, 2000, TimeUnit.MILLISECONDS);
     }
 
 
@@ -362,8 +384,8 @@ public class MainActivity extends ActionMenuActivity {
         ms_executorService.submit(new Callable<Object>() {
             @Override
             public Object call() throws Exception {
-//                T result = task.get();
-//                listener.onCompleted(result);
+                T result = task.get();
+                listener.onCompleted(result);
                 return null;
             }
         });
@@ -376,10 +398,28 @@ public class MainActivity extends ActionMenuActivity {
     private static ExecutorService ms_executorService;
 
     static {
-        ms_executorService = Executors.newCachedThreadPool();
+        ms_executorService = Executors.newCachedThreadPool(new ThreadFactory() {
+            @Override
+            public Thread newThread(Runnable r) {
+                Thread t = new Thread(r);
+                t.setDaemon(true);
+                return t;
+            }
+        });
     }
 
-    private static ScheduledExecutorService ss_executorService = Executors.newScheduledThreadPool(3);
+    private static ScheduledExecutorService ss_executorService;
+
+    static {
+        ss_executorService = Executors.newScheduledThreadPool(3, new ThreadFactory() {
+            @Override
+            public Thread newThread(Runnable r) {
+                Thread t = new Thread(r);
+                t.setDaemon(true);
+                return t;
+            }
+        });
+    }
 
 
     private TextChangeListener mlistener;
@@ -511,8 +551,8 @@ public class MainActivity extends ActionMenuActivity {
 //                    detectAndFrame(storedBitmap);
                     } finally {
                         if (null != output) {
-                            Log.d(TAG, "image path: "+file.getAbsolutePath());
-                            client.uploadImage(String.valueOf(IsequenceID), file);
+//                            Log.d(TAG, "image path: "+file.getAbsolutePath());
+                            client.uploadImage2(String.valueOf(IsequenceID), file);
 //                            detectAndFrame(storedBitmap);
                             output.flush();
                             output.close();
@@ -544,7 +584,7 @@ public class MainActivity extends ActionMenuActivity {
 
                 @Override
                 public void onConfigureFailed(CameraCaptureSession session) {
-                    Log.d(TAG,"CaptureSession Fail");
+                    Log.d(TAG, "CaptureSession Fail");
                 }
             }, mBackgroundHandler);
         } catch (CameraAccessException e) {
@@ -600,7 +640,6 @@ public class MainActivity extends ActionMenuActivity {
         Log.e(TAG, "onResume");
         startBackgroundThread();
         if (textureView.isAvailable()) {
-            Log.d(TAG,"opencamera onResume");
             openCamera();
         } else {
             textureView.setSurfaceTextureListener(textureListener);
@@ -788,6 +827,7 @@ public class MainActivity extends ActionMenuActivity {
         return Environment.MEDIA_MOUNTED.equals(Environment.getExternalStorageState());
 
     }
+
     protected void createCameraPreview() {
         try {
             int width = 640;
@@ -812,7 +852,7 @@ public class MainActivity extends ActionMenuActivity {
             captureRequestBuilder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
             captureRequestBuilder.addTarget(surface);
 //            captureRequestBuilder.set(CaptureRequest.SCALER_CROP_REGION,zoom );
-            cameraDevice.createCaptureSession(Arrays.asList(surface), new CameraCaptureSession.StateCallback(){
+            cameraDevice.createCaptureSession(Arrays.asList(surface), new CameraCaptureSession.StateCallback() {
                 @Override
                 public void onConfigured(@NonNull CameraCaptureSession cameraCaptureSession) {
                     //The camera is already closed
@@ -823,6 +863,7 @@ public class MainActivity extends ActionMenuActivity {
                     cameraCaptureSessions = cameraCaptureSession;
                     updatePreview();
                 }
+
                 @Override
                 public void onConfigureFailed(@NonNull CameraCaptureSession cameraCaptureSession) {
 //                    Toast.makeText(MainActivity.this, "Configuration change", Toast.LENGTH_SHORT).show();
@@ -834,7 +875,7 @@ public class MainActivity extends ActionMenuActivity {
     }
 
     protected void updatePreview() {
-        if(null == cameraDevice) {
+        if (null == cameraDevice) {
             Log.e(TAG, "updatePreview error, return");
         }
         captureRequestBuilder.set(CaptureRequest.CONTROL_MODE, CameraMetadata.CONTROL_MODE_AUTO);

@@ -72,7 +72,7 @@ public class MicrophoneStream extends PullAudioInputStreamCallback {
 
     public void StartRecording(final String currTime) throws IOException {
         this.currTime = currTime;
-        Log.d(TAG, currTime);
+//        Log.d(TAG, currTime);
         rawfile = getFile("raw");
 
         long audiostarttime = System.currentTimeMillis();
