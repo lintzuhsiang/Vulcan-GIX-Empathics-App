@@ -6,8 +6,8 @@
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:keepScreenOn="true"
+    android:background="#000000"
     tools:context=".MainActivity">
-<!--    android:background="#000000"-->
 
 
     <TextureView

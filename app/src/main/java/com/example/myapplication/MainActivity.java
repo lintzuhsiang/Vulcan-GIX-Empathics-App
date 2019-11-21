@@ -182,7 +182,10 @@ public class MainActivity extends ActionMenuActivity {
     private String android_id;
     User user = new User();
     SimpleDateFormat formatter = new SimpleDateFormat("yyyy_MM_dd_HH_mm_ss", Locale.US);
-
+//    private ServerListener mServerListener = new ServerListener(serverScoreListener,serverImageListener);
+    private ServerListener mServerListener = new ServerListener();
+    private ServerListener.ResponseListener serverScoreListener = mServerListener.getScoreListener();
+    private ServerListener.ResponseListener serverImageListener = mServerListener.getImageListener();
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -269,9 +272,17 @@ public class MainActivity extends ActionMenuActivity {
         });
     }
 
+
+
+    private String scoreResult;
+    private String imageResult;
+
     private void SpeechSentimentInit() {
         Log.d(TAG, "SpeechSentimentInit");
         AudioConfig audioInput;
+
+
+
         try {
             audioInput = AudioConfig.fromStreamInput(createMicrophoneStream());
             reco = new SpeechRecognizer(speechConfig, audioInput);
@@ -285,13 +296,18 @@ public class MainActivity extends ActionMenuActivity {
                     if (s.length() > 1) {
 //                        sentiment.afterTextchange(s);
 //                        sentimentResult = sentiment.getSentimentScore();
-                        Log.d(TAG, "text onChange detect " + sentimentResult);
-                        if (preSpeechResult != s && mlistener != null) {
-                            mlistener.onChanged(s);
+                        if (scorelistener != null) {
+                            scorelistener.onChanged(s);
                             Log.d(TAG, "SsequenceID");
                             Log.d(TAG, String.valueOf(SsequenceID));
-
                         }
+//                        Log.d(TAG, "ServerScoreListener "+ serverScoreListener);
+
+//                        if(serverScoreListener!=null){
+//                            serverScoreListener.onComplete(s);
+//                            Log.d(TAG, "SsequenceID");
+//                            Log.d(TAG, String.valueOf(SsequenceID));
+//                        }
                     }
                 }
             });
@@ -338,6 +354,9 @@ public class MainActivity extends ActionMenuActivity {
                     //upload score 0.5 if not getting result from speech-to-text API
                     //update score from TextListener and update the score to cloud
                     client.uploadScore(String.valueOf(SsequenceID), "0.5");
+
+
+
                     setTextListener(new TextChangeListener() {
                         @Override
                         public void onChanged(Object taskResult) {
@@ -346,6 +365,28 @@ public class MainActivity extends ActionMenuActivity {
                             Log.d(TAG, "SsequenceID2");
                             Log.d(TAG, String.valueOf(SsequenceID));
                             client.uploadScore(String.valueOf(SsequenceID), sentimentResult);
+                        }
+                    });
+//                    client.setResponseListener(new NetworkClient.ResponseListener() {
+//                        @Override
+//                        public void onComplete(String result) {
+//                            scoreResult = result;
+//                            Log.d(TAG,"client ResponseListener: "+scoreResult);
+//                        }
+//                    });
+                    mServerListener.setScoreResponseListener(new ServerListener.ResponseListener() {
+                        @Override
+                        public void onComplete(String result) {
+                            scoreResult = result;
+                            Log.d(TAG,"Server ScoreResponseListener: "+scoreResult);
+                        }
+                    });
+
+                    mServerListener.setImageResponseListener(new ServerListener.ResponseListener() {
+                        @Override
+                        public void onComplete(String result) {
+                            imageResult = result;
+                            Log.d(TAG,"Server ImageResponseListener: "+imageResult);
                         }
                     });
 
@@ -364,7 +405,7 @@ public class MainActivity extends ActionMenuActivity {
                         Log.d(TAG, "uploadAudioandScore microphoneStream");
                         Date now = new Date();
                         microphoneStream.StartRecording(fileDir + "/" + formatter.format(now));
-                        client.uploadAudio(String.valueOf(AsequenceID), new File(fileDir + "/" + formatter.format(now) + ".wav"));
+                        //client.uploadAudio(String.valueOf(AsequenceID), new File(fileDir + "/" + formatter.format(now) + ".wav"));
 
                     } catch (IOException e) {
                         Log.d(TAG, String.valueOf(e));
@@ -376,7 +417,7 @@ public class MainActivity extends ActionMenuActivity {
                 }
 
             }
-        }, 0, 2000, TimeUnit.MILLISECONDS);
+        }, 0, 1000, TimeUnit.MILLISECONDS);
     }
 
 
@@ -422,11 +463,11 @@ public class MainActivity extends ActionMenuActivity {
     }
 
 
-    private TextChangeListener mlistener;
-
+    private TextChangeListener scorelistener;
+    private TextChangeListener imagelistener;
 
     private void setTextListener(TextChangeListener listener) {
-        mlistener = listener;
+        scorelistener = listener;
     }
 
 
@@ -681,147 +722,147 @@ public class MainActivity extends ActionMenuActivity {
     }
 
     //    // detect capture frame and call Face API
-//    private void detectAndFrame(final Bitmap bitmap) {
+    private void detectAndFrame(final Bitmap bitmap) {
+
+
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        bitmap.compress(Bitmap.CompressFormat.JPEG, 100, outputStream);
+        ByteArrayInputStream inputStream =
+                new ByteArrayInputStream(outputStream.toByteArray());
+
+        AsyncTask<InputStream, String, Face[]> detectTask =
+                new AsyncTask<InputStream, String, Face[]>() {
+                    String exceptionMessage = "";
+
+                    @Override
+                    protected Face[] doInBackground(InputStream... params) {
+                        try {
+                            publishProgress("Detecting...");
+                            Face[] result = faceServiceClient.detect(
+                                    params[0],
+                                    true,         // returnFaceId
+                                    false,        // returnFaceLandmarks
+                                    //null          // returnFaceAttributes:
+                                    new FaceServiceClient.FaceAttributeType[]{
+                                            FaceServiceClient.FaceAttributeType.Age,
+                                            FaceServiceClient.FaceAttributeType.Emotion
+                                    }
+                            );
+                            if (result == null) {
+                                publishProgress(
+                                        "Detection Finished. Nothing detected");
+                                return null;
+                            }
+                            publishProgress(String.format(
+                                    "Detection Finished. %d face(s) detected",
+                                    result.length));
+                            return result;
+                        } catch (Exception e) {
+                            exceptionMessage = String.format(
+                                    "Detection failed: %s", e.getMessage());
+                            return null;
+                        }
+                    }
+
+                    @Override
+                    protected void onPreExecute() {
+                        //TODO: show progress dialog
+//                        detectionProgressDialog.show();
+                    }
+
+                    @Override
+                    protected void onProgressUpdate(String... progress) {
+                        //TODO: update progress
+//                        detectionProgressDialog.setMessage(progress[0]);
+                    }
+
+                    @Override
+                    protected void onPostExecute(Face[] result) {
+                        //TODO: update face frames
+//                        detectionProgressDialog.dismiss();
+
+                        if (!exceptionMessage.equals("")) {
+//                            showError(exceptionMessage);
+                        }
+                        if (result == null) return;
 //
-//
-//        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-//        bitmap.compress(Bitmap.CompressFormat.JPEG, 100, outputStream);
-//        ByteArrayInputStream inputStream =
-//                new ByteArrayInputStream(outputStream.toByteArray());
-//
-//        AsyncTask<InputStream, String, Face[]> detectTask =
-//                new AsyncTask<InputStream, String, Face[]>() {
-//                    String exceptionMessage = "";
-//
-//                    @Override
-//                    protected Face[] doInBackground(InputStream... params) {
-//                        try {
-//                            publishProgress("Detecting...");
-//                            Face[] result = faceServiceClient.detect(
-//                                    params[0],
-//                                    true,         // returnFaceId
-//                                    false,        // returnFaceLandmarks
-//                                    //null          // returnFaceAttributes:
-//                                    new FaceServiceClient.FaceAttributeType[]{
-//                                            FaceServiceClient.FaceAttributeType.Age,
-//                                            FaceServiceClient.FaceAttributeType.Emotion
-//                                    }
-//                            );
-//                            if (result == null) {
-//                                publishProgress(
-//                                        "Detection Finished. Nothing detected");
-//                                return null;
-//                            }
-//                            publishProgress(String.format(
-//                                    "Detection Finished. %d face(s) detected",
-//                                    result.length));
-//                            return result;
-//                        } catch (Exception e) {
-//                            exceptionMessage = String.format(
-//                                    "Detection failed: %s", e.getMessage());
-//                            return null;
-//                        }
-//                    }
-//
-//                    @Override
-//                    protected void onPreExecute() {
-//                        //TODO: show progress dialog
-////                        detectionProgressDialog.show();
-//                    }
-//
-//                    @Override
-//                    protected void onProgressUpdate(String... progress) {
-//                        //TODO: update progress
-////                        detectionProgressDialog.setMessage(progress[0]);
-//                    }
-//
-//                    @Override
-//                    protected void onPostExecute(Face[] result) {
-//                        //TODO: update face frames
-////                        detectionProgressDialog.dismiss();
-//
-//                        if (!exceptionMessage.equals("")) {
-////                            showError(exceptionMessage);
-//                        }
-//                        if (result == null) return;
-////
-//                        Log.d("emotion", String.format("detect frame ends %s", faceAPIStartTime - System.currentTimeMillis()));
-//                        imageView.setImageResource(showFaceResult(result));//,imageResource));
-//                        imageView.setVisibility(View.VISIBLE);
-//                    }
-//                };
-//
-//        detectTask.execute(inputStream);
-//    }
-//
-//    // get Face Result and return responding icon
-//    private int showFaceResult(Face[] faces) {
-//        Log.d("emotion", "Inside showFaceResult function");
-//        int imageResource = 0;
-//
-//        String emo = "";
-//        if (faces != null) {
-//            Log.d("emotion", "face numbers %s" + faces.length);
-//
-//            for (Face face : faces) {
-//                FaceRectangle faceRectangle = face.faceRectangle;
-////                System.out.print(face.faceAttributes.emotion);
-//                Emotion faceEmotion = face.faceAttributes.emotion;
-//                double anger = faceEmotion.anger;
-//                double contempt = faceEmotion.contempt;
-//                double disgust = faceEmotion.disgust;
-//                double fear = faceEmotion.fear;
-//                double happiness = faceEmotion.happiness;
-//                double neutral = faceEmotion.neutral;
-//                double sadness = faceEmotion.sadness;
-//                double surprise = faceEmotion.surprise;
-//                double[] emoArrVal = {anger, contempt, disgust, fear, happiness, neutral, sadness, surprise};
-//                String[] emoArr = {"anger", "contempt", "disgust", "fear", "happiness", "neutral", "sadness", "surprise"};
-//                int maxEmo = getMaxValue(emoArrVal);
-//                emo = emoArr[maxEmo];
-//
-//            }
-//        } else {
-////            paint.setTextSize(400);
-////            canvas.drawText("no face detected",75,385,paint);
-////            canvas.translate(0,200);
-//        }
-//        Log.d("emotion", emo);
-//
-//        switch (emo) {
-//            default:
-//                imageResource = android.R.color.transparent;
-//                break;
-//            case "neutral":
-//                imageResource = getResources().getIdentifier("@drawable/neutral", "drawable", getPackageName());
-//                break;
-//
-//            case "happiness":
-//                imageResource = getResources().getIdentifier("@drawable/happy", "drawable", getPackageName());
-//                break;
-//
-//            case "sadness":
-//                imageResource = getResources().getIdentifier("@drawable/sad", "drawable", getPackageName());
-//                break;
-//        }
-//        Log.d("imageResource", String.valueOf(imageResource));
-//        return imageResource;
-//    }
-//
-//
-//    public static int getMaxValue(double[] numbers) {
-//        double maxValue = numbers[0];
-//        int maxIndex = 0;
-//
-//        for (int i = 0; i < numbers.length; i++) {
-//            if (numbers[i] > maxValue) {
-//                maxValue = numbers[i];
-//                maxIndex = i;
-//            }
-//        }
-//        return maxIndex;
-//    }
-//
+                        Log.d("emotion", String.format("detect frame ends %s", faceAPIStartTime - System.currentTimeMillis()));
+                        imageView.setImageResource(showFaceResult(result));//,imageResource));
+                        imageView.setVisibility(View.VISIBLE);
+                    }
+                };
+
+        detectTask.execute(inputStream);
+    }
+
+    // get Face Result and return responding icon
+    private int showFaceResult(Face[] faces) {
+        Log.d("emotion", "Inside showFaceResult function");
+        int imageResource = 0;
+
+        String emo = "";
+        if (faces != null) {
+            Log.d("emotion", "face numbers %s" + faces.length);
+
+            for (Face face : faces) {
+                FaceRectangle faceRectangle = face.faceRectangle;
+//                System.out.print(face.faceAttributes.emotion);
+                Emotion faceEmotion = face.faceAttributes.emotion;
+                double anger = faceEmotion.anger;
+                double contempt = faceEmotion.contempt;
+                double disgust = faceEmotion.disgust;
+                double fear = faceEmotion.fear;
+                double happiness = faceEmotion.happiness;
+                double neutral = faceEmotion.neutral;
+                double sadness = faceEmotion.sadness;
+                double surprise = faceEmotion.surprise;
+                double[] emoArrVal = {anger, contempt, disgust, fear, happiness, neutral, sadness, surprise};
+                String[] emoArr = {"anger", "contempt", "disgust", "fear", "happiness", "neutral", "sadness", "surprise"};
+                int maxEmo = getMaxValue(emoArrVal);
+                emo = emoArr[maxEmo];
+
+            }
+        } else {
+//            paint.setTextSize(400);
+//            canvas.drawText("no face detected",75,385,paint);
+//            canvas.translate(0,200);
+        }
+        Log.d("emotion", emo);
+
+        switch (emo) {
+            default:
+                imageResource = android.R.color.transparent;
+                break;
+            case "neutral":
+                imageResource = getResources().getIdentifier("@drawable/neutral", "drawable", getPackageName());
+                break;
+
+            case "happiness":
+                imageResource = getResources().getIdentifier("@drawable/happy", "drawable", getPackageName());
+                break;
+
+            case "sadness":
+                imageResource = getResources().getIdentifier("@drawable/sad", "drawable", getPackageName());
+                break;
+        }
+        Log.d("imageResource", String.valueOf(imageResource));
+        return imageResource;
+    }
+
+
+    public static int getMaxValue(double[] numbers) {
+        double maxValue = numbers[0];
+        int maxIndex = 0;
+
+        for (int i = 0; i < numbers.length; i++) {
+            if (numbers[i] > maxValue) {
+                maxValue = numbers[i];
+                maxIndex = i;
+            }
+        }
+        return maxIndex;
+    }
+
     private boolean isExternalStorageWritable() {
 
         return Environment.MEDIA_MOUNTED.equals(Environment.getExternalStorageState());
