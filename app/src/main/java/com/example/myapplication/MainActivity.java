@@ -149,6 +149,7 @@ public class MainActivity extends ActionMenuActivity {
     private MicrophoneStream microphoneStream;
 
 
+
     private MicrophoneStream createMicrophoneStream() {
         if (microphoneStream != null) {
             microphoneStream.close();
@@ -182,10 +183,11 @@ public class MainActivity extends ActionMenuActivity {
     private String android_id;
     User user = new User();
     SimpleDateFormat formatter = new SimpleDateFormat("yyyy_MM_dd_HH_mm_ss", Locale.US);
-//    private ServerListener mServerListener = new ServerListener(serverScoreListener,serverImageListener);
-    private ServerListener mServerListener = new ServerListener();
-    private ServerListener.ResponseListener serverScoreListener = mServerListener.getScoreListener();
-    private ServerListener.ResponseListener serverImageListener = mServerListener.getImageListener();
+
+//    private ServerListener mServerListener = new ServerListener();
+    public ServerListener.ResponseListener serverScoreListener;// = mServerListener.getScoreListener();
+    public ServerListener.ResponseListener serverImageListener;// = mServerListener.getImageListener();
+    public ServerListener mServerListener = new ServerListener(serverScoreListener,serverImageListener);
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -296,18 +298,22 @@ public class MainActivity extends ActionMenuActivity {
                     if (s.length() > 1) {
 //                        sentiment.afterTextchange(s);
 //                        sentimentResult = sentiment.getSentimentScore();
+                        Log.d(TAG, "HERE");
+
+                        Log.d(TAG, "scorelistener "+ scorelistener);
+
                         if (scorelistener != null) {
                             scorelistener.onChanged(s);
-                            Log.d(TAG, "SsequenceID");
+                            Log.d(TAG, "SsequenceID0");
                             Log.d(TAG, String.valueOf(SsequenceID));
                         }
-//                        Log.d(TAG, "ServerScoreListener "+ serverScoreListener);
+                        Log.d(TAG, "ServerScoreListener "+ serverScoreListener);
 
-//                        if(serverScoreListener!=null){
-//                            serverScoreListener.onComplete(s);
-//                            Log.d(TAG, "SsequenceID");
-//                            Log.d(TAG, String.valueOf(SsequenceID));
-//                        }
+                        if(serverScoreListener!=null){
+                            serverScoreListener.onComplete(s);
+                            Log.d(TAG, "SsequenceID3");
+                            Log.d(TAG, String.valueOf(SsequenceID));
+                        }
                     }
                 }
             });

@@ -37,10 +37,16 @@ public class NetworkClient {
     //    private static final String BASE_URL =  "http://20.190.61.212:8000";
     private static Retrofit retrofit;
 
-    private ServerListener mServerListener = new ServerListener();
+//    private ServerListener.ResponseListener mScoreListener;
+//    private ServerListener.ResponseListener mImageListener;
 
-    private ServerListener.ResponseListener mScoreListener = mServerListener.getScoreListener();
-    private ServerListener.ResponseListener mImageListener = mServerListener.getImageListener();
+//    private ServerListener mServerListener = new ServerListener(mScoreListener,mImageListener);
+//
+    public ServerListener mServerListener = new ServerListener();
+
+    public ServerListener.ResponseListener mScoreListener = mServerListener.getScoreListener();
+    public ServerListener.ResponseListener mImageListener = mServerListener.getImageListener();
+
 
 
     public static Retrofit getRetrofitClient(NetworkClient context) {

@@ -11,11 +11,11 @@ public class ServerListener {
     public ServerListener(){
 
     }
-//    public ServerListener(ResponseListener scoreListener,ResponseListener imageListener){
-//        this.scoreListener = scoreListener;
-//        this.imageListener = imageListener;
-////        this.finalListener = finalListener;
-//    }
+    public ServerListener(ResponseListener scoreListener,ResponseListener imageListener){
+        ServerListener.scoreListener = scoreListener;
+        ServerListener.imageListener = imageListener;
+//        this.finalListener = finalListener;
+    }
 
     public interface ResponseListener {
         void onComplete(String result);
@@ -27,18 +27,18 @@ public class ServerListener {
     }
 
     public void setScoreResponseListener(ResponseListener listener) {
-        Log.d(TAG,"setScoreResponseListener " +this.scoreListener);
-        this.scoreListener = listener;
+        Log.d(TAG, String.valueOf("setScoreResponseListener is" +ServerListener.scoreListener));
+        ServerListener.scoreListener = listener;
     }
     public void setImageResponseListener(ResponseListener listener) {
         Log.d(TAG,"setImageResponseListener");
-        imageListener = listener;
+        ServerListener.imageListener = listener;
     }
 
     public ResponseListener getScoreListener(){
-        return scoreListener;
+        return ServerListener.scoreListener;
     }
     public ResponseListener getImageListener(){
-        return imageListener;
+        return ServerListener.imageListener;
     }
 }
