@@ -30,19 +30,22 @@ import retrofit2.http.POST;
 import retrofit2.http.Part;
 import retrofit2.http.PartMap;
 import retrofit2.http.Query;
-
+import java.util.Observable;
+import java.util.Observer;
 public class NetworkClient {
     private static final String BASE_URL = "http://empathics.azurewebsites.net";
     private static final String TAG = "Empethics/NetworkClient";
     //    private static final String BASE_URL =  "http://20.190.61.212:8000";
     private static Retrofit retrofit;
 
+    private boolean imageResult = false;
+    private boolean scoreResult = false;
 //    private ServerListener.ResponseListener mScoreListener;
 //    private ServerListener.ResponseListener mImageListener;
 
-//    private ServerListener mServerListener = new ServerListener(mScoreListener,mImageListener);
-//
-    public ServerListener mServerListener = new ServerListener();
+    private ServerListener mServerListener = new ServerListener();
+
+//    public ServerListener mServerListener = MainActivity.mServerListener();
 
     public ServerListener.ResponseListener mScoreListener = mServerListener.getScoreListener();
     public ServerListener.ResponseListener mImageListener = mServerListener.getImageListener();
@@ -65,7 +68,7 @@ public class NetworkClient {
 
     public String sessionId;
     User user = new User();
-
+    boolean finalResult = false;
 
     public void healthCheck() {
         Log.d("client", "healthCheck");
@@ -125,12 +128,53 @@ public class NetworkClient {
         @POST("/post_mic")
         Call<ResponseBody> uploadAudio(@Part MultipartBody.Part audio, @Part("session_id") RequestBody session_id, @Part("description") RequestBody description);
 
+        @POST("/post_ml")
+        Call<ResponseBody> uploadML(@Body RequestBody body);
+
     }
 
+    public void uploadML(String session_Id,Integer seq){
+        Retrofit retrofit = NetworkClient.getRetrofitClient(this);
+        UploadAPIs uploadAPIs = retrofit.create(UploadAPIs.class);
 
-    public RequestBody toRequestBody(String value) {
-        RequestBody body = RequestBody.create(MediaType.parse("text/plain"), value);
-        return body;
+        JSONObject request = new JSONObject();
+        try{
+            request.put("session_id","XXX");
+            request.put("seq","1");
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+        Log.d(TAG, String.valueOf(request));
+        RequestBody body = RequestBody.create(MediaType.parse("application/json"),request.toString());
+        Call call = uploadAPIs.uploadML(body);
+        call.enqueue(new Callback<ResponseBody>(){
+
+            @Override
+            public void onResponse(Call<ResponseBody> call, Response<ResponseBody> response) {
+                Log.d(TAG,"uploadML success!!");
+                try {
+                    String result = response.body().string();
+                    Log.d(TAG, String.valueOf(response.code()));
+                    Log.d(TAG,result);
+
+                    if(resultListener!=null){
+                        Log.d(TAG,"upload ML listener");
+                        resultListener.onComplete(result);
+                    }
+
+
+
+
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+
+            @Override
+            public void onFailure(Call<ResponseBody> call, Throwable t) {
+
+            }
+        });
     }
 
     public void uploadImage2(String sequence_Id, File file) {
@@ -153,9 +197,9 @@ public class NetworkClient {
         Log.d(TAG, String.valueOf(request));
 
         RequestBody json = RequestBody.create(MediaType.parse("multipart/form-data"), String.valueOf(request));
-//        RequestBody json = RequestBody.create(MediaType.parse("application/json"), String.valueOf(request));
 
         Call call = uploadAPIs.uploadImage2(part,json);
+
         call.enqueue(new Callback<ResponseBody>() {
             @Override
             public void onResponse(Call<ResponseBody> call, Response<ResponseBody> response) {
@@ -166,6 +210,15 @@ public class NetworkClient {
                     Log.d(TAG, String.valueOf(response.code()));
                     Log.d(TAG, result);
                     Log.d(TAG, String.valueOf(mImageListener));
+
+                    imageResult = true;
+                    finalResult = scoreResult && imageResult;
+
+                    if(finalResult && finalListener!=null){
+                        finalListener.onComplete(true);
+                        scoreResult = false;
+                        imageResult = false;
+                    }
 
                     if(mImageListener!=null){
                         Log.d(TAG,"imageListener in uploadImage "+result);
@@ -186,6 +239,26 @@ public class NetworkClient {
 
     }
 
+
+
+
+    public Observable ClientObservable = new Observable();
+//    ClientObservable.addObserver(MainActivity.MainObserver);
+
+
+    public void getImageandScoreResult(){
+        if(imageResult == true && scoreResult==true){
+            Log.d(TAG,"getImageandScoreResult");
+            if(finalListener!=null){
+                Log.d(TAG,"finalListener onComplete");
+                finalListener.onComplete(true);
+            }
+            imageResult = false;
+            scoreResult = false;
+        }else{
+            Log.d(TAG,"waiting for two results...");
+        }
+    }
     public void uploadImage(String sequence_Id, File file) {
 
         Retrofit retrofit = NetworkClient.getRetrofitClient(this);
@@ -205,9 +278,9 @@ public class NetworkClient {
                 try {
 //                Log.d(TAG, String.valueOf(response.code()));
                     String result = response.body().string();
-                    if(imageListener!=null){
-                        imageListener.onComplete(result);
-                    }
+//                    if(imageListener!=null){
+//                        imageListener.onComplete(result);
+//                    }
                     Log.d(TAG, String.valueOf(response.code()));
                     Log.d(TAG, "upLoadImage ends2");
 
@@ -255,16 +328,24 @@ public class NetworkClient {
             @Override
             public void onResponse(Call<ResponseBody> call, Response<ResponseBody> response) {
                 try {
-                    Log.d(TAG, "upload score onResponse "+ response.code());
+                    Log.d(TAG, "upload score onResponse ");
                     String result = response.body().string();
+
                     Log.d(TAG, String.valueOf(mScoreListener));
 
+                    scoreResult = true;
+                    finalResult = scoreResult && imageResult;
+                    if(finalResult && finalListener!=null){
+                        finalListener.onComplete(true);
+                        scoreResult = false;
+                        imageResult = false;
+                    }
                     if(mScoreListener!=null){
                         Log.d(TAG,"scoreListener in uploadScore "+result);
                         mScoreListener.onComplete(result);
                     }
 //                    if(scoreListener!=null){
-//                        Log.d(TAG,"scoreListener in uploadScore"+result);
+//                        Log.d(TAG,"scoreListener in uploadScore2"+result);
 //                        scoreListener.onComplete(result);
 //                    }
                 } catch (IOException e) {
@@ -352,16 +433,28 @@ public class NetworkClient {
     }
 
     public interface ResponseListener {
-        void onComplete(String result);
+        void onComplete(boolean result);
     }
 
     public static ResponseListener scoreListener;
     public ResponseListener imageListener;
 
+    public ResponseListener finalListener;
+
     public void setResponseListener(ResponseListener listener) {
         Log.d(TAG,"setResponseListener");
-        scoreListener = listener;
+        finalListener = listener;
+//        scoreListener = listener;
 //        imageListener = listener;
     }
 
+    public ResultListener resultListener;
+
+    public interface ResultListener{
+        void onComplete(String result);
+    }
+    public void setResultListener(ResultListener listener){
+        Log.d(TAG,"setResultListener");
+        resultListener = listener;
+    }
 }

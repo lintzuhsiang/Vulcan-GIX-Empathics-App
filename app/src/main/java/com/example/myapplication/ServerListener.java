@@ -8,6 +8,7 @@ public class ServerListener {
     public static ResponseListener scoreListener;
     public static ResponseListener imageListener;
     public static ResponseListener finalListener;
+
     public ServerListener(){
 
     }
@@ -28,7 +29,7 @@ public class ServerListener {
 
     public void setScoreResponseListener(ResponseListener listener) {
         Log.d(TAG, String.valueOf("setScoreResponseListener is" +ServerListener.scoreListener));
-        ServerListener.scoreListener = listener;
+        scoreListener = listener;
     }
     public void setImageResponseListener(ResponseListener listener) {
         Log.d(TAG,"setImageResponseListener");
@@ -36,9 +37,11 @@ public class ServerListener {
     }
 
     public ResponseListener getScoreListener(){
-        return ServerListener.scoreListener;
+        Log.d(TAG, String.valueOf(ServerListener.scoreListener));
+        return scoreListener;
     }
     public ResponseListener getImageListener(){
-        return ServerListener.imageListener;
+        Log.d(TAG, String.valueOf(ServerListener.imageListener));
+        return imageListener;
     }
 }

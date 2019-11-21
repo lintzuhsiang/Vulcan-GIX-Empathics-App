@@ -54,6 +54,8 @@ import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
+import java.util.Observable;
+import java.util.Observer;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.Callable;
@@ -150,6 +152,7 @@ public class MainActivity extends ActionMenuActivity {
 
 
 
+
     private MicrophoneStream createMicrophoneStream() {
         if (microphoneStream != null) {
             microphoneStream.close();
@@ -185,9 +188,27 @@ public class MainActivity extends ActionMenuActivity {
     SimpleDateFormat formatter = new SimpleDateFormat("yyyy_MM_dd_HH_mm_ss", Locale.US);
 
 //    private ServerListener mServerListener = new ServerListener();
-    public ServerListener.ResponseListener serverScoreListener;// = mServerListener.getScoreListener();
-    public ServerListener.ResponseListener serverImageListener;// = mServerListener.getImageListener();
+    public ServerListener.ResponseListener serverScoreListener = new ServerListener.ResponseListener() {
+    @Override
+    public void onComplete(String result) {
+        Log.d(TAG,"First");
+    }
+};
+    // = mServerListener.getScoreListener();
+    public ServerListener.ResponseListener serverImageListener= new ServerListener.ResponseListener() {
+        @Override
+        public void onComplete(String result) {
+            Log.d(TAG,"Server ImageResponseListener: "+imageResult);
+            imageResult = result;
+        }
+    };
+
+        // = mServerListener.getImageListener();
+//    static public ServerListener mServerListener = new ServerListener(serverScoreListener,serverImageListener);
     public ServerListener mServerListener = new ServerListener(serverScoreListener,serverImageListener);
+//    public static ServerListener mServerListener() {
+//
+//    };
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -209,6 +230,9 @@ public class MainActivity extends ActionMenuActivity {
                 Settings.Secure.ANDROID_ID);
         user.setDeviceId(android_id);
         Log.d(TAG, user.getDeviceId());
+
+//        Log.d(TAG, String.valueOf(serverScoreListener));
+//        Log.d(TAG, String.valueOf(serverImageListener));
 
         try {
             speechConfig = SpeechConfig.fromSubscription(SpeechSubscriptionKey, SpeechRegion);
@@ -268,7 +292,7 @@ public class MainActivity extends ActionMenuActivity {
 
                     SpeechSentimentInit();
                     UploadToServer();
-
+                    setResult();
                 }
             }
         });
@@ -307,13 +331,13 @@ public class MainActivity extends ActionMenuActivity {
                             Log.d(TAG, "SsequenceID0");
                             Log.d(TAG, String.valueOf(SsequenceID));
                         }
-                        Log.d(TAG, "ServerScoreListener "+ serverScoreListener);
+//                        Log.d(TAG, "ServerScoreListener "+ serverScoreListener);
 
-                        if(serverScoreListener!=null){
-                            serverScoreListener.onComplete(s);
-                            Log.d(TAG, "SsequenceID3");
-                            Log.d(TAG, String.valueOf(SsequenceID));
-                        }
+//                        if(serverScoreListener!=null){
+//                            serverScoreListener.onComplete(s);
+//                            Log.d(TAG, "SsequenceID3");
+//                            Log.d(TAG, String.valueOf(SsequenceID));
+//                        }
                     }
                 }
             });
@@ -330,6 +354,12 @@ public class MainActivity extends ActionMenuActivity {
             System.out.println(ex.getMessage());
         }
     }
+    public Observer MainObserver = new Observer() {
+        @Override
+        public void update(Observable o, Object arg) {
+
+        }
+    };
     //Upload post_pic, post_senti_score, post_audio to web server periodically
     void UploadToServer() {
         ss_executorService.scheduleWithFixedDelay(new Runnable() {
@@ -373,26 +403,26 @@ public class MainActivity extends ActionMenuActivity {
                             client.uploadScore(String.valueOf(SsequenceID), sentimentResult);
                         }
                     });
-//                    client.setResponseListener(new NetworkClient.ResponseListener() {
+//
+//                    Log.d(TAG,serverScoreListener==NetworkClient.mScoreListener);
+//
+//                    mServerListener.setScoreResponseListener(new ServerListener.ResponseListener() {
 //                        @Override
 //                        public void onComplete(String result) {
 //                            scoreResult = result;
-//                            Log.d(TAG,"client ResponseListener: "+scoreResult);
+//                            Log.d(TAG,"Server ScoreResponseListener: "+scoreResult);
 //                        }
 //                    });
-                    mServerListener.setScoreResponseListener(new ServerListener.ResponseListener() {
-                        @Override
-                        public void onComplete(String result) {
-                            scoreResult = result;
-                            Log.d(TAG,"Server ScoreResponseListener: "+scoreResult);
-                        }
-                    });
+//
+//                    mServerListener.setImageResponseListener(serverImageListener);
+//                    Log.d(TAG,"image Result: "+imageResult);
 
-                    mServerListener.setImageResponseListener(new ServerListener.ResponseListener() {
+//                    client.getImageandScoreResult();
+                    client.setResponseListener(new NetworkClient.ResponseListener() {
                         @Override
-                        public void onComplete(String result) {
-                            imageResult = result;
-                            Log.d(TAG,"Server ImageResponseListener: "+imageResult);
+                        public void onComplete(boolean result) {
+                            Log.d(TAG,"complete");
+                            client.uploadML(sessionId,AsequenceID);
                         }
                     });
 
@@ -522,6 +552,34 @@ public class MainActivity extends ActionMenuActivity {
         }
     };
 
+    private void setResult(){
+        Log.d(TAG,"setResult");
+        client.setResultListener(new NetworkClient.ResultListener() {
+            @Override
+            public void onComplete(String result) {
+                Log.d(TAG,result);
+                int imageResource = 0;
+                switch (result) {
+                    default:
+                        imageResource = android.R.color.transparent;
+                        break;
+                    case "0":
+                        imageResource = getResources().getIdentifier("@drawable/neutral", "drawable", getPackageName());
+                        break;
+
+                    case "1":
+                        imageResource = getResources().getIdentifier("@drawable/happy", "drawable", getPackageName());
+                        break;
+
+                    case "2":
+                        imageResource = getResources().getIdentifier("@drawable/sad", "drawable", getPackageName());
+                        break;
+                }
+                imageView.setImageResource(imageResource);//,imageResource));
+                imageView.setVisibility(View.VISIBLE);
+            }
+        });
+    }
     private void takePicture() {
         if (null == cameraDevice) {
             openCamera();
