@@ -8,6 +8,8 @@ import org.json.JSONObject;
 import java.io.File;
 import java.io.IOException;
 import java.lang.annotation.Target;
+import java.util.HashMap;
+import java.util.Map;
 
 import okhttp3.MediaType;
 import okhttp3.MultipartBody;
@@ -26,6 +28,7 @@ import retrofit2.http.GET;
 import retrofit2.http.Multipart;
 import retrofit2.http.POST;
 import retrofit2.http.Part;
+import retrofit2.http.PartMap;
 import retrofit2.http.Query;
 
 public class NetworkClient {
@@ -33,6 +36,12 @@ public class NetworkClient {
     private static final String TAG = "Empethics/NetworkClient";
     //    private static final String BASE_URL =  "http://20.190.61.212:8000";
     private static Retrofit retrofit;
+
+    private ServerListener mServerListener = new ServerListener();
+
+    private ServerListener.ResponseListener mScoreListener = mServerListener.getScoreListener();
+    private ServerListener.ResponseListener mImageListener = mServerListener.getImageListener();
+
 
     public static Retrofit getRetrofitClient(NetworkClient context) {
         if (retrofit == null) {
@@ -84,22 +93,9 @@ public class NetworkClient {
     }
 
     String server;
-    Callback callback = new Callback() {
-        @Override
-        public void onResponse(Call call, Response response) {
-            server = response.body().toString();
-        }
 
-        @Override
-        public void onFailure(Call call, Throwable t) {
-
-        }
-    };
 
     public interface UploadAPIs {
-
-//        @GET("/get_session_id")
-//        Call<User> getUser();
 
         @GET("/get_session_id")
         Call<ResponseBody> getSessionID();
@@ -108,9 +104,6 @@ public class NetworkClient {
         Call<ResponseBody> healthCheck();
 
 
-        //        @POST("/post_senti_socre")
-//        Call<ResponseBody> uploadScore(@Query("session_id") String session_id, @Query("sequence_id") String sequence_id, @Query("device_id") String device_id, @Query("score") String score);
-//        @FormUrlEncoded
         @POST("/post_senti_score")
         Call<ResponseBody> uploadScore(@Body RequestBody body);
 
@@ -118,14 +111,9 @@ public class NetworkClient {
         @POST("/post_pic_test")
         Call<ResponseBody> uploadImage(@Part MultipartBody.Part photo, @Part("description") RequestBody description);
 
-//        @Multipart
-//        @POST("/post_pic")
-//        Call<ResponseBody> uploadImage2(@Part MultipartBody.Part photo, @Body RequestBody body);
-
-
         @Multipart
         @POST("/post_pic")
-        Call<ResponseBody> uploadImage2(@Part MultipartBody.Part photo, @Part("session_id") RequestBody session_id, @Part("device_id") RequestBody device_id, @Part("seq") RequestBody sequence_id, @Part("description") RequestBody description);
+        Call<ResponseBody> uploadImage2(@Part MultipartBody.Part photo, @Part("data") RequestBody body);
 
         @Multipart
         @POST("/post_mic")
@@ -133,67 +121,53 @@ public class NetworkClient {
 
     }
 
-//    public void getUser(){
-//        UploadAPIs uploadAPIs = retrofit.create(UploadAPIs.class);
-//        Call call = uploadAPIs.getUser();
-//        call.enqueue(new Callback<User>() {
-//            @Override
-//            public void onResponse(Call<User> call, Response<User> response) {
-//                User user = response.body();
-//            }
-//
-//            @Override
-//            public void onFailure(Call call, Throwable t) {
-//
-//            }
-//        });
-//    }
+
+    public RequestBody toRequestBody(String value) {
+        RequestBody body = RequestBody.create(MediaType.parse("text/plain"), value);
+        return body;
+    }
 
     public void uploadImage2(String sequence_Id, File file) {
 
-        final File file2 = new File("/storage/emulated/0/Android/data/com.example.myapplication/files/Pictures/2019_11_18_23_16_28.jpg");
         Retrofit retrofit = NetworkClient.getRetrofitClient(this);
         UploadAPIs uploadAPIs = retrofit.create(UploadAPIs.class);
 
         RequestBody fileReqBody = RequestBody.create(MediaType.parse("image/*"), file);
         MultipartBody.Part part = MultipartBody.Part.createFormData("image", file.getName(), fileReqBody);
 
-        RequestBody description = RequestBody.create(MediaType.parse("text/plain"), "image-type");
-        RequestBody session_id = RequestBody.create(MediaType.parse("text/plain"), User.sessionId);
-        RequestBody device_id = RequestBody.create(MediaType.parse("text/plain"), User.deviceId);
-        RequestBody sequence_id = RequestBody.create(MediaType.parse("text/plain"), sequence_Id);
+        JSONObject request = new JSONObject();
+        try {
+            request.put("session_id",user.sessionId);
+            request.put("seq",sequence_Id);
+            request.put("device_id",user.deviceId);
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
 
-//
-//        JSONObject request = new JSONObject();
-//        try {
-//            request.put("session_id",user.sessionId);
-//            request.put("seq",sequence_Id);
-//            request.put("device_id",user.deviceId);
-//        } catch (JSONException e) {
-//            e.printStackTrace();
-//        }
-//        Log.d(TAG, String.valueOf(request));
-//
-//        RequestBody body = RequestBody.create(MediaType.parse("application/json"),request.toString());
+        Log.d(TAG, String.valueOf(request));
 
+        RequestBody json = RequestBody.create(MediaType.parse("multipart/form-data"), String.valueOf(request));
+//        RequestBody json = RequestBody.create(MediaType.parse("application/json"), String.valueOf(request));
 
-//        Call call = uploadAPIs.uploadImage2(part,body);
-        Call call = uploadAPIs.uploadImage2(part, session_id, device_id, sequence_id, description);
+        Call call = uploadAPIs.uploadImage2(part,json);
         call.enqueue(new Callback<ResponseBody>() {
             @Override
             public void onResponse(Call<ResponseBody> call, Response<ResponseBody> response) {
 
-                Log.d(TAG, "upLoadImage");
-//                Log.d(TAG, String.valueOf(response.code()));
-
+                Log.d(TAG, "upload image onResponse");
                 try {
+                    String result = response.body().string();
                     Log.d(TAG, String.valueOf(response.code()));
-                    Log.d(TAG, String.valueOf(response.body().string()));
+                    Log.d(TAG, result);
+                    Log.d(TAG, String.valueOf(mImageListener));
 
+                    if(mImageListener!=null){
+                        Log.d(TAG,"imageListener in uploadImage "+result);
+                        mImageListener.onComplete(result);
+                    }
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
-
             }
 
             @Override
@@ -208,7 +182,6 @@ public class NetworkClient {
 
     public void uploadImage(String sequence_Id, File file) {
 
-        final File file2 = new File("/storage/emulated/0/Android/data/com.example.myapplication/files/Pictures/2019_11_18_23_16_28.jpg");
         Retrofit retrofit = NetworkClient.getRetrofitClient(this);
         UploadAPIs uploadAPIs = retrofit.create(UploadAPIs.class);
 
@@ -216,23 +189,20 @@ public class NetworkClient {
         MultipartBody.Part part = MultipartBody.Part.createFormData("image", file.getName(), fileReqBody);
 
         RequestBody description = RequestBody.create(MediaType.parse("text/plain"), "image-type");
-//        RequestBody session_id = RequestBody.create(MediaType.parse("text/plain"), User.sessionId);
-//        RequestBody device_id = RequestBody.create(MediaType.parse("text/plain"), User.deviceId);
-
-//        RequestBody sequence_id = RequestBody.create(MediaType.parse("text/plain"), sequence_Id);
 
 
         Call call = uploadAPIs.uploadImage(part, description);
         call.enqueue(new Callback<ResponseBody>() {
             @Override
             public void onResponse(Call<ResponseBody> call, Response<ResponseBody> response) {
-
                 Log.d(TAG, "upLoadImage");
-//                Log.d(TAG, String.valueOf(response.code()));
-
                 try {
+//                Log.d(TAG, String.valueOf(response.code()));
+                    String result = response.body().string();
+                    if(imageListener!=null){
+                        imageListener.onComplete(result);
+                    }
                     Log.d(TAG, String.valueOf(response.code()));
-                    Log.d(TAG, String.valueOf(response.body().string()));
                     Log.d(TAG, "upLoadImage ends2");
 
                 } catch (IOException e) {
@@ -253,7 +223,7 @@ public class NetworkClient {
 
     }
 
-    public void uploadScore(String sequence_Id, String score_) {
+    public void uploadScore(String sequence_Id, final String score_) {
         Log.d(TAG, "upload score");
         Log.d(TAG, score_);
         Retrofit retrofit = NetworkClient.getRetrofitClient(this);
@@ -268,19 +238,32 @@ public class NetworkClient {
         } catch (JSONException e) {
             e.printStackTrace();
         }
-//        Log.d(TAG, String.valueOf(request));
+
+        Log.d(TAG, String.valueOf(request));
 
         RequestBody body = RequestBody.create(MediaType.parse("application/json"), request.toString());
-//        Log.d(TAG, String.valueOf(body));
 
         Call call = uploadAPIs.uploadScore(body);
 
         call.enqueue(new Callback<ResponseBody>() {
             @Override
             public void onResponse(Call<ResponseBody> call, Response<ResponseBody> response) {
-                Log.d(TAG, String.valueOf(response.code()));
-//                    Log.d(TAG, response.body().string());
+                try {
+                    Log.d(TAG, "upload score onResponse "+ response.code());
+                    String result = response.body().string();
+                    Log.d(TAG, String.valueOf(mScoreListener));
 
+                    if(mScoreListener!=null){
+                        Log.d(TAG,"scoreListener in uploadScore "+result);
+                        mScoreListener.onComplete(result);
+                    }
+//                    if(scoreListener!=null){
+//                        Log.d(TAG,"scoreListener in uploadScore"+result);
+//                        scoreListener.onComplete(result);
+//                    }
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
             }
 
             @Override
@@ -366,11 +349,13 @@ public class NetworkClient {
         void onComplete(String result);
     }
 
-    public ResponseListener resultListener;
+    public static ResponseListener scoreListener;
+    public ResponseListener imageListener;
 
     public void setResponseListener(ResponseListener listener) {
-
-        resultListener = listener;
+        Log.d(TAG,"setResponseListener");
+        scoreListener = listener;
+//        imageListener = listener;
     }
 
 }
