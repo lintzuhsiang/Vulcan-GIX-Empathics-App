@@ -175,11 +175,11 @@ public class MainActivity extends ActionMenuActivity {
     boolean continuousListeningStarted = false;
     SpeechRecognizer reco = null;
 
-    public static String sessionId;
-    public static String deviceId;
+
     private Integer AsequenceID = 0;
     private Integer IsequenceID = 0;
     private Integer SsequenceID = 0;
+    private Integer MsequenceID = 0;
     private String android_id;
     User user = new User();
     SimpleDateFormat formatter = new SimpleDateFormat("yyyy_MM_dd_HH_mm_ss", Locale.US);
@@ -224,7 +224,7 @@ public class MainActivity extends ActionMenuActivity {
                     if (reco != null) {
                         final Future<Void> task = reco.stopContinuousRecognitionAsync();
 
-                        microphoneStream.stopRecording();
+//                        microphoneStream.stopRecording();
 
                         setSSTCompletedListener(task, new OnTaskCompletedListener<Void>() {
                             @Override
@@ -274,21 +274,14 @@ public class MainActivity extends ActionMenuActivity {
             audioInput = AudioConfig.fromStreamInput(createMicrophoneStream());
             reco = new SpeechRecognizer(speechConfig, audioInput);
 
-
             reco.recognized.addEventListener(new EventHandler<SpeechRecognitionEventArgs>() {
                 @Override
                 public void onEvent(Object o, SpeechRecognitionEventArgs speechRecognitionResultEventArgs) {
                     final String s = speechRecognitionResultEventArgs.getResult().getText();
                     Log.i(TAG, "Final result received: " + s);
                     if (s.length() > 1) {
-//                        sentiment.afterTextchange(s);
-//                        sentimentResult = sentiment.getSentimentScore();
-
-                        if (scorelistener != null) {
-                            scorelistener.onChanged(s);
-                            Log.d(TAG, "SsequenceID0");
-                            Log.d(TAG, String.valueOf(SsequenceID));
-                        }
+                        sentiment.afterTextchange(s);
+                        sentimentResult = sentiment.getSentimentScore();
                     }
                 }
             });
@@ -307,11 +300,10 @@ public class MainActivity extends ActionMenuActivity {
     }
 
     private void setResultOnGlass(){
-        Log.d(TAG,"setResult");
         Client.setResultListener(new NetworkClient.ResultListener() {
             @Override
             public void onComplete(String result) {
-                Log.d(TAG,"onComplete "+result);
+//                Log.d(TAG,"onComplete "+result);
                 int imageResource = 0;
                 switch (result) {
                     default:
@@ -329,7 +321,6 @@ public class MainActivity extends ActionMenuActivity {
                         imageResource = getResources().getIdentifier("@drawable/sad", "drawable", getPackageName());
                         break;
                 }
-                Log.d(TAG, String.valueOf(imageResource));
                 imageView.setImageResource(imageResource);
                 imageView.setVisibility(View.VISIBLE);
             }
@@ -343,46 +334,51 @@ public class MainActivity extends ActionMenuActivity {
             public void run() {
                 Log.d(TAG, "UploadToServer");
                 if (continuousListeningStarted) {
-                    IsequenceID += 1;
-                    SsequenceID += 1;
-                    AsequenceID += 1;
+//                    MsequenceID = Math.min(Math.min(IsequenceID,AsequenceID),SsequenceID);
                     Log.d(TAG, "IsequenceID");
                     Log.d(TAG, String.valueOf(IsequenceID));
                     Log.d(TAG, "SsequenceID");
                     Log.d(TAG, String.valueOf(SsequenceID));
                     Log.d(TAG, "AsequenceID");
                     Log.d(TAG, String.valueOf(AsequenceID));
-
-                    //take picture and send to cloud
-                    takePicture();
-
-                    //sleep
-                    try {
-                        Thread.sleep(200);
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
-                    }
+                    Log.d(TAG, "MsequenceID");
+                    Log.d(TAG, String.valueOf(MsequenceID));
+//                    sleep
+//                    try {
+//                        Thread.sleep(100);
+//                    } catch (InterruptedException e) {
+//                        e.printStackTrace();
+//                    }
 
                     //upload score 0.5 if not getting result from speech-to-text API
                     //update score from TextListener and update the score to cloud
+                    SsequenceID += 1;
                     Client.uploadScore(String.valueOf(SsequenceID), "0.5");
 
                     setTextListener(new TextChangeListener() {
                         @Override
                         public void onChanged(Object taskResult) {
-                            sentiment.afterTextchange((String) taskResult);
-                            sentimentResult = sentiment.getSentimentScore();
+                            Log.d(TAG, String.valueOf(taskResult));
+
+//                            executorService.execute(sentiment.getSentimentScore2);
+                            //                                sentimentResult = sentiment.getSentimentScore2.get();
+
+                            Client.uploadScore(String.valueOf(SsequenceID), (String) taskResult);
                             Log.d(TAG, "SsequenceID2");
                             Log.d(TAG, String.valueOf(SsequenceID));
-                            Client.uploadScore(String.valueOf(SsequenceID), sentimentResult);
+                            Log.d(TAG, String.valueOf(taskResult));
                         }
                     });
+
+                    //take picture and send to cloud
+                    takePicture();
 
                     Client.setuploadMLListener(new NetworkClient.ResponseListener() {
                         @Override
                         public void onComplete(boolean result) {
                             Log.d(TAG,"MLListener complete");
-                            Client.uploadML(sessionId,AsequenceID);
+                            MsequenceID += 1;
+                            Client.uploadML(String.valueOf(MsequenceID));
                         }
                     });
                     //get Result from ML model and show on the glasses
@@ -399,23 +395,38 @@ public class MainActivity extends ActionMenuActivity {
                     fileDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES).getAbsolutePath();
 
                     //microphone streaming recording and upload audio to server
-                    try {
-                        Log.d(TAG, "uploadAudioandScore microphoneStream");
-                        Date now = new Date();
-                        microphoneStream.StartRecording(fileDir + "/" + formatter.format(now));
-                        //client.uploadAudio(String.valueOf(AsequenceID), new File(fileDir + "/" + formatter.format(now) + ".wav"));
+//                    try {
+//                        Log.d(TAG, "uploadAudioandScore microphoneStream");
+//                        Date now = new Date();
+//                        microphoneStream.StartRecording(fileDir + "/" + formatter.format(now));
+                    AsequenceID += 1;
+//                        //client.uploadAudio(String.valueOf(AsequenceID), new File(fileDir + "/" + formatter.format(now) + ".wav"));
 
-                    } catch (IOException e) {
-                        Log.d(TAG, String.valueOf(e));
-                        e.printStackTrace();
-                    }
+//
+//                    } catch (IOException e) {
+//                        Log.d(TAG, String.valueOf(e));
+//                        e.printStackTrace();
+//                    }
                 } else {
 
                 }
 
             }
-        }, 0, 1000, TimeUnit.MILLISECONDS);
+        }, 0, 1500, TimeUnit.MILLISECONDS);
     }
+
+    private static ExecutorService executorService;
+    static{
+        executorService = Executors.newCachedThreadPool(new ThreadFactory() {
+            @Override
+            public Thread newThread(Runnable r) {
+                Thread t = new Thread(r);
+                t.setDaemon(true);
+                return t;
+            }
+        });
+    }
+
 
 
     private <T> void setSSTCompletedListener(final Future<T> task, final OnTaskCompletedListener<T> listener) {
@@ -460,7 +471,7 @@ public class MainActivity extends ActionMenuActivity {
     }
 
 
-    private TextChangeListener scorelistener;
+    static public TextChangeListener scorelistener;
 
     private void setTextListener(TextChangeListener listener) {
         scorelistener = listener;
@@ -548,7 +559,7 @@ public class MainActivity extends ActionMenuActivity {
 
             Date now = new Date();
             file = new File(getExternalFilesDir(Environment.DIRECTORY_PICTURES) + "/" + formatter.format(now) + ".jpg");
-
+//            file = new File(getExternalFilesDir(Environment.DIRECTORY_PICTURES) + "/" + "picture" + ".jpg");
             ImageReader.OnImageAvailableListener readerListener = new ImageReader.OnImageAvailableListener() {
                 @Override
                 public void onImageAvailable(ImageReader reader) {
@@ -588,7 +599,14 @@ public class MainActivity extends ActionMenuActivity {
 //                    detectAndFrame(storedBitmap);
                     } finally {
                         if (null != output) {
-//                            Log.d(TAG, "image path: "+file.getAbsolutePath());
+                            Log.d(TAG, "image path: "+file.getAbsolutePath());
+                            //sleep
+//                            try {
+////                                Thread.sleep(100);
+//                            } catch (InterruptedException e) {
+//                                e.printStackTrace();
+//                            }
+                            IsequenceID += 1;
                             Client.uploadImage2(String.valueOf(IsequenceID), file);
 //                            detectAndFrame(storedBitmap);
                             output.flush();
