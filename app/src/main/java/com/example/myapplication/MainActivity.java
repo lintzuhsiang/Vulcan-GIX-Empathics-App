@@ -13,6 +13,8 @@ import android.graphics.ImageFormat;
 import android.graphics.Matrix;
 import android.graphics.SurfaceTexture;
 import android.hardware.camera2.params.StreamConfigurationMap;
+import android.media.AudioFormat;
+import android.media.AudioRecord;
 import android.media.Image;
 import android.media.ImageReader;
 import android.os.AsyncTask;
@@ -22,6 +24,7 @@ import android.os.Environment;
 import android.os.HandlerThread;
 import android.os.Handler;
 import android.os.SystemClock;
+import android.provider.MediaStore;
 import android.provider.Settings;
 import android.telephony.TelephonyManager;
 import android.text.TextUtils;
@@ -68,11 +71,15 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
-
+import com.microsoft.cognitiveservices.speech.audio.AudioOutputStream;
+import com.microsoft.cognitiveservices.speech.audio.AudioInputStream;
 import com.microsoft.cognitiveservices.speech.SpeechConfig;
 import com.microsoft.cognitiveservices.speech.SpeechRecognitionEventArgs;
 import com.microsoft.cognitiveservices.speech.SpeechRecognizer;
 import com.microsoft.cognitiveservices.speech.audio.AudioConfig;
+import com.microsoft.cognitiveservices.speech.audio.PullAudioOutputStream;
+import com.microsoft.cognitiveservices.speech.internal.AudioDataStream;
+import com.microsoft.cognitiveservices.speech.internal.PullAudioInputStreamCallback;
 import com.microsoft.cognitiveservices.speech.util.EventHandler;
 import com.vuzix.hud.actionmenu.ActionMenuActivity;
 
@@ -136,6 +143,9 @@ public class MainActivity extends ActionMenuActivity {
     private Handler micHandler = new Handler();
     private Runnable micRunnable;
 
+//    private AudioTry Audiotry = new AudioTry();
+
+
     //timestamp
     long appstartTime = SystemClock.elapsedRealtime();
     protected long faceAPIStartTime = 0;
@@ -148,20 +158,11 @@ public class MainActivity extends ActionMenuActivity {
     private final FaceServiceClient faceServiceClient = new FaceServiceRestClient(apiEndpoint, subscriptionKey);
     public String fileDir;
     public SimpleDateFormat DateFormat = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault());
-    private MicrophoneStream microphoneStream;
 
-    private MicrophoneStream createMicrophoneStream() {
-        if (microphoneStream != null) {
-            microphoneStream.close();
-            microphoneStream = null;
-        }
-
-        microphoneStream = new MicrophoneStream();
-        return microphoneStream;
-    }
 
     //Speech-to-Text and Text Sentiment API
     private static final String SpeechSubscriptionKey = "d122e91d2df24ce889a13695542564c2";
+//    private static final String SpeechSubscriptionKey = "e7dc5968d6df46c78fea91b55c51c8a7";
     private static final String SpeechRegion = "eastus";
     private ServiceCall mSentimentCall;
     private String preSpeechResult;
@@ -169,7 +170,7 @@ public class MainActivity extends ActionMenuActivity {
     private SpeechConfig speechConfig;
     private String sentimentResult = "";
 
-
+    byte[] bBuffer = new byte[10000];
     NetworkClient Client = new NetworkClient();
     Sentiment sentiment = new Sentiment();
     boolean continuousListeningStarted = false;
@@ -177,9 +178,10 @@ public class MainActivity extends ActionMenuActivity {
 
 
     private Integer AsequenceID = 0;
-    private Integer IsequenceID = 0;
-    private Integer SsequenceID = 0;
-    private Integer MsequenceID = 0;
+    static public Integer IsequenceID = 0;
+    static public Integer SsequenceID = 0;
+    static public Integer MsequenceID = 0;
+    public ArrayList<String> score_array = new ArrayList<String>(){{add("0.5");add("0.5");}};
     private String android_id;
     User user = new User();
     SimpleDateFormat formatter = new SimpleDateFormat("yyyy_MM_dd_HH_mm_ss", Locale.US);
@@ -225,7 +227,6 @@ public class MainActivity extends ActionMenuActivity {
                         final Future<Void> task = reco.stopContinuousRecognitionAsync();
 
 //                        microphoneStream.stopRecording();
-
                         setSSTCompletedListener(task, new OnTaskCompletedListener<Void>() {
                             @Override
                             public void onCompleted(Void result) {
@@ -263,8 +264,53 @@ public class MainActivity extends ActionMenuActivity {
         });
     }
 
+//    private IntonationStream intonationStream;
+
+    private MicrophoneStream microphoneStream;
+
+//    private IntonationStream createPullStream() {
+//        if (intonationStream != null) {
+//            intonationStream.close();
+//            intonationStream = null;
+//        }
+//        intonationStream = new IntonationStream();
+//        return intonationStream;
+//    }
+
+    private MicrophoneStream createMicrophoneStream() throws FileNotFoundException {
+        if (microphoneStream != null) {
+            microphoneStream.close();
+            microphoneStream = null;
+        }
+
+        microphoneStream = new MicrophoneStream();
+        return microphoneStream;
+    }
 
 
+//    private void audioOutput() {
+//        Integer bufferSizeInBytes = AudioRecord.getMinBufferSize(16000, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT) * 20;
+//        byte[] bBuffer = new byte[bufferSizeInBytes];
+//
+////        try {
+////            intonationStream.StartRecording("here");
+////        } catch (IOException e) {
+////            e.printStackTrace();
+////        }
+//        PullAudioOutputStream stream = AudioOutputStream.createPullStream();
+//
+////        long audioStartTime = System.currentTimeMillis();
+////        stream.read(bBuffer);
+//        Date now = new Date();
+//        try {
+//            intonationStream.StartRecording(String.valueOf(now));
+//        } catch (IOException e) {
+//            e.printStackTrace();
+//        }
+//
+//
+////        AudioConfig streamConfig = AudioConfig.fromStreamOutput(stream);
+//    }
 
     private void SpeechSentimentInit() {
         Log.d(TAG, "SpeechSentimentInit");
@@ -272,6 +318,7 @@ public class MainActivity extends ActionMenuActivity {
 
         try {
             audioInput = AudioConfig.fromStreamInput(createMicrophoneStream());
+//            microphoneStream.read()
             reco = new SpeechRecognizer(speechConfig, audioInput);
 
             reco.recognized.addEventListener(new EventHandler<SpeechRecognitionEventArgs>() {
@@ -297,9 +344,11 @@ public class MainActivity extends ActionMenuActivity {
         } catch (Exception ex) {
             System.out.println(ex.getMessage());
         }
+        Log.d(TAG, "SpeechSentimentInit ends");
+
     }
 
-    private void setResultOnGlass(){
+    private void setResultOnGlass() {
         Client.setResultListener(new NetworkClient.ResultListener() {
             @Override
             public void onComplete(String result) {
@@ -327,6 +376,8 @@ public class MainActivity extends ActionMenuActivity {
         });
     }
 
+    private Thread recordingThread;
+
     //Upload post_pic, post_senti_score, post_audio to web server periodically
     void UploadToServer() {
         ss_executorService.scheduleWithFixedDelay(new Runnable() {
@@ -336,13 +387,13 @@ public class MainActivity extends ActionMenuActivity {
                 if (continuousListeningStarted) {
 //                    MsequenceID = Math.min(Math.min(IsequenceID,AsequenceID),SsequenceID);
                     Log.d(TAG, "IsequenceID");
-                    Log.d(TAG, String.valueOf(IsequenceID));
+                    Log.d(TAG, String.valueOf(IsequenceID + 1));
                     Log.d(TAG, "SsequenceID");
-                    Log.d(TAG, String.valueOf(SsequenceID));
+                    Log.d(TAG, String.valueOf(SsequenceID + 1));
                     Log.d(TAG, "AsequenceID");
-                    Log.d(TAG, String.valueOf(AsequenceID));
+                    Log.d(TAG, String.valueOf(AsequenceID + 1));
                     Log.d(TAG, "MsequenceID");
-                    Log.d(TAG, String.valueOf(MsequenceID));
+                    Log.d(TAG, String.valueOf(MsequenceID + 1));
 //                    sleep
 //                    try {
 //                        Thread.sleep(100);
@@ -353,31 +404,31 @@ public class MainActivity extends ActionMenuActivity {
                     //upload score 0.5 if not getting result from speech-to-text API
                     //update score from TextListener and update the score to cloud
                     SsequenceID += 1;
-                    Client.uploadScore(String.valueOf(SsequenceID), "0.5");
-
+                    Log.d(TAG,"score_array: "+score_array);
+//                    Client.uploadScore(String.valueOf(SsequenceID), "0.5", "0");
+                    Client.uploadScore(String.valueOf(SsequenceID),score_array.get(score_array.size()-1));
+                    score_array.add("0.5");
+                    score_array.remove(0);
                     setTextListener(new TextChangeListener() {
                         @Override
                         public void onChanged(Object taskResult) {
-                            Log.d(TAG, String.valueOf(taskResult));
-
-//                            executorService.execute(sentiment.getSentimentScore2);
-                            //                                sentimentResult = sentiment.getSentimentScore2.get();
-
-                            Client.uploadScore(String.valueOf(SsequenceID), (String) taskResult);
-                            Log.d(TAG, "SsequenceID2");
-                            Log.d(TAG, String.valueOf(SsequenceID));
-                            Log.d(TAG, String.valueOf(taskResult));
+//                            Log.d(TAG, String.valueOf(taskResult));
+                            score_array.add(String.valueOf(taskResult));
+                            score_array.remove(0);
+//                            Client.uploadScore(String.valueOf(SsequenceID), (String) taskResult);
+//                            Client.uploadML(String.valueOf(MsequenceID));
+//
                         }
                     });
 
                     //take picture and send to cloud
                     takePicture();
-
+                    MsequenceID += 1;
+                    Client.uploadML = false;
                     Client.setuploadMLListener(new NetworkClient.ResponseListener() {
                         @Override
                         public void onComplete(boolean result) {
-                            Log.d(TAG,"MLListener complete");
-                            MsequenceID += 1;
+                            Log.d(TAG, "MLListener complete");
                             Client.uploadML(String.valueOf(MsequenceID));
                         }
                     });
@@ -386,7 +437,7 @@ public class MainActivity extends ActionMenuActivity {
 
                     //sleep
                     try {
-                        Thread.sleep(100);
+                        Thread.sleep(200);
                     } catch (InterruptedException e) {
                         e.printStackTrace();
                     }
@@ -395,28 +446,31 @@ public class MainActivity extends ActionMenuActivity {
                     fileDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES).getAbsolutePath();
 
                     //microphone streaming recording and upload audio to server
-//                    try {
-//                        Log.d(TAG, "uploadAudioandScore microphoneStream");
-//                        Date now = new Date();
-//                        microphoneStream.StartRecording(fileDir + "/" + formatter.format(now));
+                    Log.d(TAG, "uploadAudioandScore microphoneStream");
+                    try {
+                        microphoneStream.record();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
                     AsequenceID += 1;
-//                        //client.uploadAudio(String.valueOf(AsequenceID), new File(fileDir + "/" + formatter.format(now) + ".wav"));
+                    microphoneStream.setAudioListener(new MicrophoneStream.ResponseListener() {
+                        @Override
+                        public void onComplete(boolean flag) {
+//                            Client.uploadAudio(String.valueOf(AsequenceID), new File(fileDir + "/" + formatter.format(now) + ".wav"));
+                        }
+                    });
 
 //
-//                    } catch (IOException e) {
-//                        Log.d(TAG, String.valueOf(e));
-//                        e.printStackTrace();
-//                    }
                 } else {
 
                 }
-
             }
-        }, 0, 1500, TimeUnit.MILLISECONDS);
+        }, 0, 2000, TimeUnit.MILLISECONDS);
     }
 
     private static ExecutorService executorService;
-    static{
+
+    static {
         executorService = Executors.newCachedThreadPool(new ThreadFactory() {
             @Override
             public Thread newThread(Runnable r) {
@@ -426,7 +480,6 @@ public class MainActivity extends ActionMenuActivity {
             }
         });
     }
-
 
 
     private <T> void setSSTCompletedListener(final Future<T> task, final OnTaskCompletedListener<T> listener) {
@@ -522,7 +575,6 @@ public class MainActivity extends ActionMenuActivity {
     };
 
 
-
     private void takePicture() {
         if (null == cameraDevice) {
             openCamera();
@@ -599,7 +651,7 @@ public class MainActivity extends ActionMenuActivity {
 //                    detectAndFrame(storedBitmap);
                     } finally {
                         if (null != output) {
-                            Log.d(TAG, "image path: "+file.getAbsolutePath());
+                            Log.d(TAG, "image path: " + file.getAbsolutePath());
                             //sleep
 //                            try {
 ////                                Thread.sleep(100);

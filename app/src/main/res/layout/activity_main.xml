@@ -8,6 +8,8 @@
     android:keepScreenOn="true"
     android:background="#000000"
     tools:context=".MainActivity">
+<!--    "-->
+
 
 
     <TextureView
@@ -59,7 +61,7 @@
         android:layout_width="50dp"
         android:layout_height="50dp"
         android:layout_gravity="end|right|top"
-        android:src="@drawable/neutral"
+        android:src="@drawable/neutral1"
         android:visibility="gone" />
 
     <ImageView

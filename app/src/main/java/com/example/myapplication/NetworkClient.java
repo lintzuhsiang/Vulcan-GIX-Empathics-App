@@ -39,7 +39,8 @@ public class NetworkClient {
 
     private boolean imageResult = false;
     private boolean scoreResult = false;
-    private boolean updateScoreFlag=false;
+    private boolean audioResult = false;
+    private boolean updateScoreFlag = false;
 
 
     public static Retrofit getRetrofitClient(NetworkClient context) {
@@ -59,6 +60,7 @@ public class NetworkClient {
     public String sessionId;
     User user = new User();
     boolean finalResult = false;
+    public static boolean uploadML = false;
 
     public void healthCheck() {
         Log.d("client", "healthCheck");
@@ -111,7 +113,7 @@ public class NetworkClient {
         Call<ResponseBody> uploadImage2(@Part MultipartBody.Part photo, @Part("data") RequestBody body);
 
         @Multipart
-        @POST("/post_mic")
+        @POST("/post_audio")
         Call<ResponseBody> uploadAudio(@Part MultipartBody.Part audio, @Part("data") RequestBody body);
 
         @POST("/post_ml")
@@ -119,32 +121,38 @@ public class NetworkClient {
 
     }
 
-    public void uploadML(final String seq){
+    public void uploadML(final String seq) {
+
+
+        Log.d(TAG, "ML updataScoreFlag: " + updateScoreFlag + " seq: " + seq);
+        Log.d(TAG, "score: " + scoreResult + ", image: " + imageResult + ", uploadML: " + uploadML);
+
         Retrofit retrofit = NetworkClient.getRetrofitClient(this);
         UploadAPIs uploadAPIs = retrofit.create(UploadAPIs.class);
 
         JSONObject request = new JSONObject();
-        try{
-            request.put("session_id",user.sessionId);
-            request.put("seq",seq);
+        try {
+            request.put("session_id", user.sessionId);
+            request.put("seq", seq);
         } catch (JSONException e) {
             e.printStackTrace();
         }
-        Log.d(TAG,"upload ML request: "+ request);
-        RequestBody body = RequestBody.create(MediaType.parse("application/json"),request.toString());
+        Log.d(TAG, "upload ML request: " + request);
+        RequestBody body = RequestBody.create(MediaType.parse("application/json"), request.toString());
         Call call = uploadAPIs.uploadML(body);
-        call.enqueue(new Callback<ResponseBody>(){
+        call.enqueue(new Callback<ResponseBody>() {
 
             @Override
             public void onResponse(Call<ResponseBody> call, Response<ResponseBody> response) {
-                Log.d(TAG,"uploadML success "+ seq);
+                Log.d(TAG, "uploadML " + seq);
+                if (!updateScoreFlag) {
+                    uploadML = true;
+                }
                 try {
-                    Log.d(TAG, String.valueOf(response.code()));
                     String result = response.body().string();
-                    Log.d(TAG,result);
+                    Log.d(TAG,"uploadML result: "+result);
 
-                    if(resultListener!=null){
-                        Log.d(TAG,"upload ML listener");
+                    if (resultListener != null) {
                         resultListener.onComplete(result);
                     }
 
@@ -160,8 +168,108 @@ public class NetworkClient {
         });
     }
 
+
+    public void uploadScore(final String sequence_Id, final String score_) {
+//        if (again == "1") {
+//            updateScoreFlag = true;
+//        } else {
+//            updateScoreFlag = false;
+//        }
+        Log.d(TAG, "upload score seq: " + sequence_Id + " updateScoreFlag: " + updateScoreFlag + " score: " + score_);
+
+
+        Retrofit retrofit = NetworkClient.getRetrofitClient(this);
+        UploadAPIs uploadAPIs = retrofit.create(UploadAPIs.class);
+
+        JSONObject request = new JSONObject();
+        try {
+            request.put("session_id", user.sessionId);
+            request.put("seq", sequence_Id);
+            request.put("sentiment_score", score_);
+            request.put("device_id", user.deviceId);
+            request.put("again", "0");
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+
+        Log.d(TAG, "upload Score request: " + request);
+
+        RequestBody body = RequestBody.create(MediaType.parse("application/json"), request.toString());
+
+        Call call = uploadAPIs.uploadScore(body);
+
+        call.enqueue(new Callback<ResponseBody>() {
+            @Override
+            public void onResponse(Call<ResponseBody> call, Response<ResponseBody> response) {
+                Log.d(TAG, "upload score onResponse " + sequence_Id);
+                try {
+                    String result = response.body().string();
+                    Log.d(TAG,"uploadScore result: "+result);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+
+
+                scoreResult = true;
+                finalResult = scoreResult && imageResult;
+//                finalResult = scoreResult && imageResult && audioResult;
+                Log.d(TAG, "Upload Score "+sequence_Id+ ".Score: " + scoreResult + ", image: " + imageResult + ", uploadML: " + uploadML);
+
+//                if(updateScoreFlag){
+//                    if(MLListener!=null){
+//                        Log.d(TAG,"updateScore Flag");
+//                        MLListener.onComplete(true);
+//                        uploadML = false;
+//                        updateScoreFlag = false;
+//                    }
+//                }else{
+//                    if(finalResult && MLListener!=null){
+//                        Log.d(TAG,"finalResult invoke uploadML");
+//                        MLListener.onComplete(true);
+//                        uploadML = false;
+//                        scoreResult = false;
+//                        imageResult = false;
+//
+//                    }
+//                }
+//                if ((updateScoreFlag&&imageResult || finalResult) && MLListener != null) {
+//                if ((updateScoreFlag|| finalResult)&& imageResult && MLListener != null) {
+//                    MLListener.onComplete(true);
+//                    updateScoreFlag = false;
+//                    scoreResult = false;
+//                    imageResult = false;
+//
+//                }
+
+//                scoreResult = false;
+//                imageResult = false;
+
+                if(finalResult && MLListener!=null){
+                    Log.d(TAG,"score first");
+                    MLListener.onComplete(true);
+                    scoreResult = false;
+                    imageResult = false;
+                    audioResult = false;
+                }
+//
+//                if((updateScoreFlag && imageResult) && MLListener!=null){
+//                    Log.d(TAG,"updateScore Flag");
+//                    MLListener.onComplete(true);
+//                    updateScoreFlag = false;
+//                }
+
+            }
+
+            @Override
+            public void onFailure(Call call, Throwable t) {
+                Log.d(TAG, "fail on upload score");
+
+            }
+        });
+    }
+
     public void uploadImage2(final String sequence_Id, File file) {
-        Log.d(TAG,"upload image "+ sequence_Id);
+        Log.d(TAG, "upload image " + sequence_Id);
         Retrofit retrofit = NetworkClient.getRetrofitClient(this);
         UploadAPIs uploadAPIs = retrofit.create(UploadAPIs.class);
 
@@ -170,37 +278,38 @@ public class NetworkClient {
 
         JSONObject request = new JSONObject();
         try {
-            request.put("session_id",user.sessionId);
-            request.put("seq",sequence_Id);
-            request.put("device_id",user.deviceId);
+            request.put("session_id", user.sessionId);
+            request.put("seq", sequence_Id);
+            request.put("device_id", user.deviceId);
         } catch (JSONException e) {
             e.printStackTrace();
         }
 
-        Log.d(TAG, "upload Image request: "+String.valueOf(request));
+        Log.d(TAG, "upload Image request: " + request);
 
         RequestBody json = RequestBody.create(MediaType.parse("multipart/form-data"), String.valueOf(request));
 
-        Call call = uploadAPIs.uploadImage2(part,json);
+        Call call = uploadAPIs.uploadImage2(part, json);
 
         call.enqueue(new Callback<ResponseBody>() {
             @Override
             public void onResponse(Call<ResponseBody> call, Response<ResponseBody> response) {
 
-                Log.d(TAG, "upload image onResponse "+sequence_Id);
+                Log.d(TAG, "upload image onResponse " + sequence_Id);
                 try {
                     String result = response.body().string();
-                    Log.d(TAG, String.valueOf(response.code()));
-                    Log.d(TAG, result);
+                    Log.d(TAG,"uploadImage result: "+result);
 
                     imageResult = true;
                     finalResult = scoreResult && imageResult;
-                    Log.d(TAG,"image, final Result "+finalResult);
-                    if(finalResult && MLListener!=null){
-                        Log.d(TAG,"image first");
+//                    finalResult = scoreResult && imageResult && audioResult;
+                    Log.d(TAG, "Upload Image "+sequence_Id+" . Score: " + scoreResult + ", image: " + imageResult + ", uploadML: " + uploadML);
+                    if (finalResult && MLListener != null) {
                         MLListener.onComplete(true);
+                        uploadML = false;
                         scoreResult = false;
                         imageResult = false;
+                        audioResult = false;
                     }
 
                 } catch (IOException e) {
@@ -261,66 +370,6 @@ public class NetworkClient {
 
     }
 
-    public void uploadScore(final String sequence_Id, final String score_) {
-        Log.d(TAG, "upload score "+sequence_Id);
-        Log.d(TAG, score_);
-
-        if(score_ !="0.5"){
-            updateScoreFlag = true;
-        }
-        Retrofit retrofit = NetworkClient.getRetrofitClient(this);
-        UploadAPIs uploadAPIs = retrofit.create(UploadAPIs.class);
-
-        JSONObject request = new JSONObject();
-        try {
-            request.put("session_id", user.sessionId);
-            request.put("seq", sequence_Id);
-            request.put("sentiment_score", score_);
-            request.put("device_id", user.deviceId);
-        } catch (JSONException e) {
-            e.printStackTrace();
-        }
-
-        Log.d(TAG, "upload Score request: "+String.valueOf(request));
-
-        RequestBody body = RequestBody.create(MediaType.parse("application/json"), request.toString());
-
-        Call call = uploadAPIs.uploadScore(body);
-
-        call.enqueue(new Callback<ResponseBody>() {
-            @Override
-            public void onResponse(Call<ResponseBody> call, Response<ResponseBody> response) {
-                Log.d(TAG, "upload score onResponse "+sequence_Id);
-                Log.d(TAG, String.valueOf(response.code()));
-                try {
-                    Log.d(TAG, String.valueOf(response.body().string()));
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-                scoreResult = true;
-                finalResult = scoreResult && imageResult;
-                Log.d(TAG,"score, final Result "+finalResult);
-                if(updateScoreFlag && imageResult && MLListener!=null){
-                    Log.d(TAG,"updateScore Flag");
-                    MLListener.onComplete(true);
-                    updateScoreFlag = false;
-                }
-                if(finalResult && MLListener!=null){
-                    Log.d(TAG,"score first");
-                    MLListener.onComplete(true);
-                    scoreResult = false;
-                    imageResult = false;
-                }
-
-            }
-
-            @Override
-            public void onFailure(Call call, Throwable t) {
-                Log.d(TAG, "fail on upload score");
-
-            }
-        });
-    }
 
     public void uploadAudio(String sequence_Id, File file) {
         Retrofit retrofit = NetworkClient.getRetrofitClient(this);
@@ -342,10 +391,10 @@ public class NetworkClient {
             e.printStackTrace();
         }
 
-        Log.d(TAG, "upload Score request: "+ request);
+        Log.d(TAG, "upload Audio request: " + request);
 
-        RequestBody body = RequestBody.create(MediaType.parse("application/json"), request.toString());
-        Call call = uploadAPIs.uploadAudio(part,body);
+        RequestBody body = RequestBody.create(MediaType.parse("multipart/form-data"), request.toString());
+        Call call = uploadAPIs.uploadAudio(part, body);
         Log.d(TAG, "upLoadAudio");
         call.enqueue(new Callback<ResponseBody>() {
             @Override
@@ -358,23 +407,25 @@ public class NetworkClient {
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
-//                scoreResult = true;
-//                finalResult = scoreResult && imageResult;
+                audioResult = true;
+                finalResult = scoreResult && imageResult;
+//                finalResult = scoreResult &&  imageResult && audioResult;
 //                if(updateScoreFlag && MLListener!=null){
 //                    Log.d(TAG,"updateScore Flag");
 //                    MLListener.onComplete(true);
 //                    updateScoreFlag = false;
 //                }
-//                if(finalResult && MLListener!=null){
-//                    MLListener.onComplete(true);
-//                    scoreResult = false;
-//                    imageResult = false;
-//                }
+                if(finalResult && MLListener!=null){
+                    MLListener.onComplete(true);
+                    scoreResult = false;
+                    imageResult = false;
+                    audioResult = false;
+                }
             }
 
             @Override
             public void onFailure(Call call, Throwable t) {
-                Log.d(TAG,"fail in upload audio");
+                Log.d(TAG, "fail in upload audio");
                 t.printStackTrace();
 
             }
@@ -434,10 +485,11 @@ public class NetworkClient {
 
     public ResultListener resultListener;
 
-    public interface ResultListener{
+    public interface ResultListener {
         void onComplete(String result);
     }
-    public void setResultListener(ResultListener listener){
+
+    public void setResultListener(ResultListener listener) {
         resultListener = listener;
     }
 }

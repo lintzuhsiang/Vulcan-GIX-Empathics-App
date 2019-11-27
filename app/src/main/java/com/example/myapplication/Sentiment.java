@@ -65,7 +65,6 @@ public class Sentiment {
                         sentimentResult = sentimentResponse.getDocuments().get(0).getScore().toString();
                         if(MainActivity.scorelistener!=null){
                             MainActivity.scorelistener.onChanged(sentimentResult);
-
                         }
                     }
                 }
@@ -86,39 +85,4 @@ public class Sentiment {
             return sentimentResult;
     };
 
-
-
-    public FutureTask<String> getSentimentScore2 = new FutureTask<String>(new Callable<String>() {
-        @Override
-        public String call() {
-            mRequest = new ServiceRequestClient(SentimentSubscriptionKey);
-            ServiceCallback mSentimentCallback = new ServiceCallback(mRequest.getRetrofit()) {
-                @Override
-                public void onResponse(Call call, Response response) {
-                    super.onResponse(call, response);
-                    SentimentResponse sentimentResponse = (SentimentResponse) response.body();
-                    Log.d(TAG, String.valueOf(sentimentResponse.getDocuments()));
-
-                    if (response != null && response.isSuccessful()) {
-                        Log.d(TAG, String.valueOf(sentimentResponse.getDocuments().get(0).getScore()));
-                        sentimentResult = sentimentResponse.getDocuments().get(0).getScore().toString();
-                    }
-                }
-
-                @Override
-                public void onFailure(Call call, Throwable t) {
-                    super.onFailure(call, t);
-                    Log.d(TAG, "Fail");
-                }
-            };
-
-            try {
-                mSentimentCall = mRequest.getSentimentAsync(mTextIncludeLanguageRequest, mSentimentCallback);
-            } catch (IllegalArgumentException e) {
-                Log.d(TAG, "Fail in catch");
-                System.out.println(e);
-            }
-            return sentimentResult;
-        }
-    });
 }
