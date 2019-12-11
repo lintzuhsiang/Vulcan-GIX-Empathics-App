@@ -92,13 +92,10 @@ import com.microsoft.cognitive.textanalytics.retrofit.ServiceRequestClient;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-//import org.apache.http.client.HttpClient;
-//import org.apache.http.client.methods.HttpPost;
-//import org.apache.http.entity.mime.HttpMultipartMode;
-//import org.apache.http.entity.mime.MultipartEntity;
-//import org.apache.http.entity.mime.content.FileBody;
-//import org.apache.http.entity.mime.content.StringBody;
 
+import com.vuzix.system.resources.haptics.Haptics;
+
+import android.os.Vibrator;
 
 public class MainActivity extends ActionMenuActivity {
 //public class MainActivity extends AppCompatActivity {
@@ -110,7 +107,7 @@ public class MainActivity extends ActionMenuActivity {
     private TextureView textureView;
     private ImageView imageView;
     private ImageView imageViewRedDot;
-
+    private TextView textView;
     private static final SparseIntArray ORIENTATIONS = new SparseIntArray();
 
     static {
@@ -127,6 +124,8 @@ public class MainActivity extends ActionMenuActivity {
     protected CaptureRequest.Builder captureRequestBuilder;
     private Size imageDimension;
     private static final int REQUEST_CAMERA_PERMISSION = 200;
+    private static final int REQUEST_AUDIO_PERMISSION = 300;
+
     private Bitmap storedBitmap;
     private File file;
 
@@ -143,8 +142,6 @@ public class MainActivity extends ActionMenuActivity {
     private Handler micHandler = new Handler();
     private Runnable micRunnable;
 
-//    private AudioTry Audiotry = new AudioTry();
-
 
     //timestamp
     long appstartTime = SystemClock.elapsedRealtime();
@@ -156,19 +153,20 @@ public class MainActivity extends ActionMenuActivity {
     private final String apiEndpoint = FACE_ENDPOINT;
     private final String subscriptionKey = FACE_SUBSCRIPTION_KEY;
     private final FaceServiceClient faceServiceClient = new FaceServiceRestClient(apiEndpoint, subscriptionKey);
-    public String fileDir;
+    public static String fileDir;
     public SimpleDateFormat DateFormat = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault());
 
 
     //Speech-to-Text and Text Sentiment API
     private static final String SpeechSubscriptionKey = "d122e91d2df24ce889a13695542564c2";
-//    private static final String SpeechSubscriptionKey = "e7dc5968d6df46c78fea91b55c51c8a7";
+    //    private static final String SpeechSubscriptionKey = "e7dc5968d6df46c78fea91b55c51c8a7";
     private static final String SpeechRegion = "eastus";
     private ServiceCall mSentimentCall;
     private String preSpeechResult;
 
     private SpeechConfig speechConfig;
     private String sentimentResult = "";
+    private MicrophoneStream microphoneStream;
 
     byte[] bBuffer = new byte[10000];
     NetworkClient Client = new NetworkClient();
@@ -176,15 +174,23 @@ public class MainActivity extends ActionMenuActivity {
     boolean continuousListeningStarted = false;
     SpeechRecognizer reco = null;
 
-
+    private Date now = new Date();
     private Integer AsequenceID = 0;
     static public Integer IsequenceID = 0;
     static public Integer SsequenceID = 0;
     static public Integer MsequenceID = 0;
-    public ArrayList<String> score_array = new ArrayList<String>(){{add("0.5");add("0.5");}};
+    public ArrayList<String> score_array = new ArrayList<String>() {{
+        add("0.5");
+        add("0.5");
+    }};
     private String android_id;
     User user = new User();
     SimpleDateFormat formatter = new SimpleDateFormat("yyyy_MM_dd_HH_mm_ss", Locale.US);
+
+    private Vibrator mLeftVibe;
+    private Vibrator mRightVibe;
+    private Vibrator mBothVibe;
+    private Haptics hapticsManager = new Haptics(this);
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -192,16 +198,22 @@ public class MainActivity extends ActionMenuActivity {
         setContentView(R.layout.activity_main);
         textureView = findViewById(R.id.textureView);
         assert textureView != null;
-//        textureView.setSurfaceTextureListener(textureListener);
+        textureView.setSurfaceTextureListener(textureListener);
         takePictureButton = findViewById(R.id.btn_takepicture);
         assert takePictureButton != null;
-
+        textView = findViewById(R.id.Textview);
         fileDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES).getAbsolutePath();
 
         imageView = findViewById(R.id.imageView);
         imageViewRedDot = findViewById(R.id.imageView2);
 
-        Toast.makeText(MainActivity.this, "Tap to start.", Toast.LENGTH_LONG).show();
+//        Toast.makeText(MainActivity.this, "Tap to start.", Toast.LENGTH_LONG).show();
+
+        /** Setup individual controls for the left and right feedback motors */
+        mLeftVibe = hapticsManager.getLeftVibrator();
+        mRightVibe = hapticsManager.getRightVibrator();
+        /** Setup standard control for both sides together */
+        mBothVibe = (Vibrator) getSystemService(VIBRATOR_SERVICE);
 
         android_id = Settings.Secure.getString(getContext().getContentResolver(),
                 Settings.Secure.ANDROID_ID);
@@ -240,7 +252,8 @@ public class MainActivity extends ActionMenuActivity {
 
 
                     Toast.makeText(MainActivity.this, "Emotion detection: Off", Toast.LENGTH_SHORT).show();
-//                    timerHandler.removeCallbacks(runnableCode);
+                    uploadServer.removeCallbacks(uploadServerRunnable);
+
 
                     int imageResource = getResources().getIdentifier("@drawable/pause", "drawable", getPackageName());
                     imageViewRedDot.setImageResource(imageResource);
@@ -253,70 +266,40 @@ public class MainActivity extends ActionMenuActivity {
                     Log.d(TAG, String.valueOf(continuousListeningStarted));
                     int imageResource = getResources().getIdentifier("@drawable/reddot", "drawable", getPackageName());
                     imageViewRedDot.setImageResource(imageResource);
-
+                    textView.setVisibility(View.INVISIBLE);
                     Toast.makeText(MainActivity.this, "Emotion detection: On", Toast.LENGTH_SHORT).show();
                     imageViewRedDot.setVisibility(View.VISIBLE);
 
                     SpeechSentimentInit();
-                    UploadToServer();
+//                    UploadToServer();
+                    uploadServerRunnable.run();
                 }
             }
         });
     }
 
-//    private IntonationStream intonationStream;
-
-    private MicrophoneStream microphoneStream;
-
-//    private IntonationStream createPullStream() {
-//        if (intonationStream != null) {
-//            intonationStream.close();
-//            intonationStream = null;
-//        }
-//        intonationStream = new IntonationStream();
-//        return intonationStream;
-//    }
 
     private MicrophoneStream createMicrophoneStream() throws FileNotFoundException {
         if (microphoneStream != null) {
             microphoneStream.close();
             microphoneStream = null;
         }
-
         microphoneStream = new MicrophoneStream();
+//        microphoneStream.filepath = fileDir;
         return microphoneStream;
     }
 
 
-//    private void audioOutput() {
-//        Integer bufferSizeInBytes = AudioRecord.getMinBufferSize(16000, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT) * 20;
-//        byte[] bBuffer = new byte[bufferSizeInBytes];
-//
-////        try {
-////            intonationStream.StartRecording("here");
-////        } catch (IOException e) {
-////            e.printStackTrace();
-////        }
-//        PullAudioOutputStream stream = AudioOutputStream.createPullStream();
-//
-////        long audioStartTime = System.currentTimeMillis();
-////        stream.read(bBuffer);
-//        Date now = new Date();
-//        try {
-//            intonationStream.StartRecording(String.valueOf(now));
-//        } catch (IOException e) {
-//            e.printStackTrace();
-//        }
-//
-//
-////        AudioConfig streamConfig = AudioConfig.fromStreamOutput(stream);
-//    }
-
     private void SpeechSentimentInit() {
         Log.d(TAG, "SpeechSentimentInit");
-        AudioConfig audioInput;
 
+
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.RECORD_AUDIO}, REQUEST_AUDIO_PERMISSION);
+            return;
+        }
         try {
+            AudioConfig audioInput;
             audioInput = AudioConfig.fromStreamInput(createMicrophoneStream());
 //            microphoneStream.read()
             reco = new SpeechRecognizer(speechConfig, audioInput);
@@ -348,26 +331,31 @@ public class MainActivity extends ActionMenuActivity {
 
     }
 
-    private void setResultOnGlass() {
+    private void setResultOnGlasses() {
         Client.setResultListener(new NetworkClient.ResultListener() {
             @Override
             public void onComplete(String result) {
 //                Log.d(TAG,"onComplete "+result);
                 int imageResource = 0;
+                Log.d(TAG, String.format("Time end %s", appstartTime - SystemClock.elapsedRealtime()));
+
                 switch (result) {
                     default:
                         imageResource = android.R.color.transparent;
                         break;
-                    case "0":
-                        imageResource = getResources().getIdentifier("@drawable/neutral", "drawable", getPackageName());
-                        break;
+//                    case "0":
+//                        imageResource = getResources().getIdentifier("@drawable/neutral1", "drawable", getPackageName());
+//                        break;
 
                     case "2":
                         imageResource = getResources().getIdentifier("@drawable/happy", "drawable", getPackageName());
+                        long[] pattern = {100, 100, 100};
+                        mBothVibe.vibrate(pattern, -1);
                         break;
 
                     case "1":
                         imageResource = getResources().getIdentifier("@drawable/sad", "drawable", getPackageName());
+                        mLeftVibe.vibrate(300);
                         break;
                 }
                 imageView.setImageResource(imageResource);
@@ -377,23 +365,32 @@ public class MainActivity extends ActionMenuActivity {
     }
 
     private Thread recordingThread;
+    private Handler uploadServer = new Handler();
 
     //Upload post_pic, post_senti_score, post_audio to web server periodically
-    void UploadToServer() {
-        ss_executorService.scheduleWithFixedDelay(new Runnable() {
-            @Override
-            public void run() {
-                Log.d(TAG, "UploadToServer");
-                if (continuousListeningStarted) {
+//    void UploadToServer() {
+//        ss_executorService.scheduleWithFixedDelay(new Runnable() {
+//            @Override
+//            public void run() {
+    private Runnable uploadServerRunnable = new Runnable() {
+
+        //        uploadServer.postDelayed(new Runnable() {
+        @Override
+        public void run() {
+
+            Log.d(TAG, "UploadToServer");
+            if (continuousListeningStarted) {
 //                    MsequenceID = Math.min(Math.min(IsequenceID,AsequenceID),SsequenceID);
-                    Log.d(TAG, "IsequenceID");
-                    Log.d(TAG, String.valueOf(IsequenceID + 1));
-                    Log.d(TAG, "SsequenceID");
-                    Log.d(TAG, String.valueOf(SsequenceID + 1));
-                    Log.d(TAG, "AsequenceID");
-                    Log.d(TAG, String.valueOf(AsequenceID + 1));
-                    Log.d(TAG, "MsequenceID");
-                    Log.d(TAG, String.valueOf(MsequenceID + 1));
+                Log.d(TAG, "IsequenceID");
+                Log.d(TAG, String.valueOf(IsequenceID + 1));
+                Log.d(TAG, "SsequenceID");
+                Log.d(TAG, String.valueOf(SsequenceID + 1));
+                Log.d(TAG, "AsequenceID");
+                Log.d(TAG, String.valueOf(AsequenceID + 1));
+                Log.d(TAG, "MsequenceID");
+                Log.d(TAG, String.valueOf(MsequenceID + 1));
+                appstartTime = SystemClock.elapsedRealtime();
+//                    microphoneStream.now = new Date();
 //                    sleep
 //                    try {
 //                        Thread.sleep(100);
@@ -401,72 +398,78 @@ public class MainActivity extends ActionMenuActivity {
 //                        e.printStackTrace();
 //                    }
 
-                    //upload score 0.5 if not getting result from speech-to-text API
-                    //update score from TextListener and update the score to cloud
-                    SsequenceID += 1;
-                    Log.d(TAG,"score_array: "+score_array);
-//                    Client.uploadScore(String.valueOf(SsequenceID), "0.5", "0");
-                    Client.uploadScore(String.valueOf(SsequenceID),score_array.get(score_array.size()-1));
-                    score_array.add("0.5");
-                    score_array.remove(0);
-                    setTextListener(new TextChangeListener() {
-                        @Override
-                        public void onChanged(Object taskResult) {
+                //upload score 0.5 if not getting result from speech-to-text API
+                //update score from TextListener and update the score to cloud
+                SsequenceID += 1;
+                Log.d(TAG, "score_array: " + score_array);
+                Client.uploadScore(String.valueOf(SsequenceID), score_array.get(score_array.size() - 1));
+                score_array.add("0.5");
+                score_array.remove(0);
+                setTextListener(new TextChangeListener() {
+                    @Override
+                    public void onChanged(Object taskResult) {
 //                            Log.d(TAG, String.valueOf(taskResult));
-                            score_array.add(String.valueOf(taskResult));
-                            score_array.remove(0);
-//                            Client.uploadScore(String.valueOf(SsequenceID), (String) taskResult);
-//                            Client.uploadML(String.valueOf(MsequenceID));
-//
-                        }
-                    });
-
-                    //take picture and send to cloud
-                    takePicture();
-                    MsequenceID += 1;
-                    Client.uploadML = false;
-                    Client.setuploadMLListener(new NetworkClient.ResponseListener() {
-                        @Override
-                        public void onComplete(boolean result) {
-                            Log.d(TAG, "MLListener complete");
-                            Client.uploadML(String.valueOf(MsequenceID));
-                        }
-                    });
-                    //get Result from ML model and show on the glasses
-                    setResultOnGlass();
-
-                    //sleep
-                    try {
-                        Thread.sleep(200);
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
+                        score_array.add(String.valueOf(taskResult));
+                        score_array.remove(0);
                     }
+                });
 
-                    //File path
-                    fileDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES).getAbsolutePath();
-
-                    //microphone streaming recording and upload audio to server
-                    Log.d(TAG, "uploadAudioandScore microphoneStream");
-                    try {
-                        microphoneStream.record();
-                    } catch (IOException e) {
-                        e.printStackTrace();
+                //take picture and send to cloud
+                takePicture();
+                Client.uploadML = false;
+                Client.setuploadMLListener(new NetworkClient.ResponseListener() {
+                    @Override
+                    public void onComplete(boolean result) {
+                        Log.d(TAG, "MLListener complete");
+                        MsequenceID += 1;
+                        Client.uploadML(String.valueOf(MsequenceID));
                     }
-                    AsequenceID += 1;
-                    microphoneStream.setAudioListener(new MicrophoneStream.ResponseListener() {
-                        @Override
-                        public void onComplete(boolean flag) {
-//                            Client.uploadAudio(String.valueOf(AsequenceID), new File(fileDir + "/" + formatter.format(now) + ".wav"));
-                        }
-                    });
+                });
+                //get Result from ML model and show on the glasses
+                setResultOnGlasses();
 
-//
-                } else {
-
+                //sleep
+                try {
+                    Thread.sleep(200);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
                 }
+
+                //File path
+//                    fileDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES).getAbsolutePath();
+//                now = new Date();
+
+                //microphone streaming recording and upload audio to server
+                Log.d(TAG, "uploadAudioandScore microphoneStream");
+//                    try {
+//                        microphoneStream.record();
+//                        microphoneStream.StartRecording();
+//                    } catch (IOException e) {
+//                        e.printStackTrace();
+//                    }
+                AsequenceID += 1;
+                microphoneStream.setAudioListener(new MicrophoneStream.ResponseListener() {
+                    @Override
+                    public void onComplete(boolean flag) {
+                        Log.d(TAG, "upload audio filepath" + fileDir + "/" + formatter.format(microphoneStream.now));
+//                        Client.uploadAudio(String.valueOf(AsequenceID), new File(fileDir + "/" + formatter.format(microphoneStream.now) + ".wav"));
+                    }
+                });
+
+//
+            } else {
+
             }
-        }, 0, 2000, TimeUnit.MILLISECONDS);
-    }
+            uploadServer.postDelayed(this, 3000);
+        }
+
+    };
+//                uploadServer.postDelayed(uploadServerRunnable, 1500);
+
+//    uploadServer.post(uploadServerRunnable);
+
+//        }, 0, 1500, TimeUnit.MILLISECONDS);
+//    }
 
     private static ExecutorService executorService;
 
@@ -500,28 +503,14 @@ public class MainActivity extends ActionMenuActivity {
     private static ExecutorService ms_executorService;
 
     static {
-        ms_executorService = Executors.newCachedThreadPool(new ThreadFactory() {
-            @Override
-            public Thread newThread(Runnable r) {
-                Thread t = new Thread(r);
-                t.setDaemon(true);
-                return t;
-            }
-        });
+        ms_executorService = Executors.newCachedThreadPool();
     }
 
-    private static ScheduledExecutorService ss_executorService;
+    private static ScheduledExecutorService ss_executorService = Executors.newScheduledThreadPool(3);
 
-    static {
-        ss_executorService = Executors.newScheduledThreadPool(3, new ThreadFactory() {
-            @Override
-            public Thread newThread(Runnable r) {
-                Thread t = new Thread(r);
-                t.setDaemon(true);
-                return t;
-            }
-        });
-    }
+//    static {
+//        ss_executorService = Executors.newScheduledThreadPool(3);
+//    }
 
 
     static public TextChangeListener scorelistener;
@@ -674,8 +663,8 @@ public class MainActivity extends ActionMenuActivity {
                 @Override
                 public void onCaptureCompleted(CameraCaptureSession session, CaptureRequest request, TotalCaptureResult result) {
                     super.onCaptureCompleted(session, request, result);
-                    Log.d(TAG, String.format("takePicture end %s", appstartTime - SystemClock.elapsedRealtime()));
-                    appstartTime = SystemClock.elapsedRealtime();
+//                    Log.d(TAG, String.format("takePicture end %s", appstartTime - SystemClock.elapsedRealtime()));
+//                    appstartTime = SystemClock.elapsedRealtime();
 //                    createCameraPreview();
                 }
             };
@@ -739,6 +728,13 @@ public class MainActivity extends ActionMenuActivity {
                 finish();
             }
         }
+        if (requestCode == REQUEST_AUDIO_PERMISSION) {
+            if (grantResults[0] == PackageManager.PERMISSION_DENIED) {
+                // close the app
+                Toast.makeText(MainActivity.this, "Sorry!!!, you can't use this app without granting permission", Toast.LENGTH_LONG).show();
+                finish();
+            }
+        }
     }
 
     @Override
@@ -756,10 +752,10 @@ public class MainActivity extends ActionMenuActivity {
     @Override
     protected void onDestroy() {
         closeCamera();
+        super.onDestroy();
 //        ss_executorService.shutdown();
 //        ms_executorService.shutdown();
         Log.e(TAG, "onDestroy");
-        super.onDestroy();
     }
 
     @Override
@@ -899,9 +895,9 @@ public class MainActivity extends ActionMenuActivity {
             default:
                 imageResource = android.R.color.transparent;
                 break;
-            case "neutral":
-                imageResource = getResources().getIdentifier("@drawable/neutral", "drawable", getPackageName());
-                break;
+//            case "neutral":
+//                imageResource = getResources().getIdentifier("@drawable/neutral", "drawable", getPackageName());
+//                break;
 
             case "happiness":
                 imageResource = getResources().getIdentifier("@drawable/happy", "drawable", getPackageName());

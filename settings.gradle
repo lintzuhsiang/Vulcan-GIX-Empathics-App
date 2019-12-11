@@ -1,3 +1,3 @@
-include ':app', ':TextSDK', ':SpeakerSDK'
+include ':app', ':TextSDK', ':SpeakerSDK', ':jcaki-1.0-Alpha'
 rootProject.name='MyApplication'
 project(':TextSDK').projectDir = new File('app/libs/TextSDK')

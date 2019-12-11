@@ -1,5 +1,7 @@
 <resources>
-    <string name="app_name">Empethics</string>
+    <string name="app_name">Empathics</string>
     <string name="take_picture">Take picture</string>
+    <string name="first_show_text">Tap to start</string>
+
 
 </resources>

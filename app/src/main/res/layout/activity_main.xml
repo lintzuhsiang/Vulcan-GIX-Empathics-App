@@ -8,18 +8,28 @@
     android:keepScreenOn="true"
     android:background="#000000"
     tools:context=".MainActivity">
-<!--    "-->
 
 
 
     <TextureView
         android:id="@+id/textureView"
         android:layout_width="match_parent"
-        android:layout_height="80dp"
+        android:layout_height="match_parent"
         android:layout_alignParentTop="true"
         android:layout_alignParentBottom="true"
         android:layout_marginTop="10dp"
-        android:layout_marginBottom="102dp" />
+        android:layout_marginBottom="10dp" />
+
+    <TextView
+        android:id="@+id/Textview"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_centerInParent="true"
+        android:layout_marginTop="165dp"
+        android:layout_marginRight="168dp"
+        android:textColor="@color/hud_white"
+        android:textSize="20dp"
+        android:text="@string/first_show_text" />
 
     <ImageView
         android:id="@+id/imageView2"
@@ -29,17 +39,15 @@
         android:layout_alignParentRight="true"
         android:visibility="invisible" />
 
+
     <Button
         android:id="@+id/btn_takepicture"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_below="@+id/imageView2"
         android:layout_alignParentRight="true"
-        android:layout_marginTop="16dp"
+        android:layout_marginTop="160dp"
         android:layout_marginBottom="16dp"
-        android:background="#000000"
-        android:text="@string/take_picture" />
-
+        android:background="#000000" />
 
     <ImageView
         android:id="@+id/imageView"
@@ -60,7 +68,6 @@
         android:id="@+id/imageNeutral"
         android:layout_width="50dp"
         android:layout_height="50dp"
-        android:layout_gravity="end|right|top"
         android:src="@drawable/neutral1"
         android:visibility="gone" />
 
@@ -68,7 +75,6 @@
         android:id="@+id/imageSad"
         android:layout_width="50dp"
         android:layout_height="50dp"
-        android:layout_gravity="end|right|top"
         android:src="@drawable/sad"
         android:visibility="gone" />
 

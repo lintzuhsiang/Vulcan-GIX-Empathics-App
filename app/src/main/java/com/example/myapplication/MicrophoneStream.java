@@ -46,12 +46,17 @@ public class MicrophoneStream extends PullAudioInputStreamCallback {
     private AudioRecord recorder;
     static public int bufferSizeInBytes;
     boolean isRecording;
-    Date now = new Date();
-    private String fileDir = "/storage/emulated/0/Android/data/com.example.myapplication/files/Pictures/";
-    private File rawfile = getFile(fileDir + now, ".raw");
-    DataOutputStream stream = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(rawfile)));
-    byte[] buffer;
+    public Date now = new Date();
+    public String filepath;// = "/storage/emulated/0/Android/data/com.example.myapplication/files/Pictures/";
+    //    private File rawfile = getFile(filepath + now, ".raw");
+    private File rawfile;
+    DataOutputStream stream;
+    //    DataOutputStream stream = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(rawfile)));
+//    byte[] buffer;
     short[] mbuffer;
+    final Handler handler = new Handler();
+
+    private long streamstart = System.currentTimeMillis();
 
     public SimpleDateFormat DateFormat = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault());
     SimpleDateFormat formatter = new SimpleDateFormat("yyyy_MM_dd_HH_mm_ss", Locale.US);
@@ -63,49 +68,93 @@ public class MicrophoneStream extends PullAudioInputStreamCallback {
     @Override
     public int read(byte[] bytes) {
         long ret = this.recorder.read(bytes, 0, bytes.length);
-        Log.d("tmp", String.valueOf(ret));
-
-//        byte[] buffer = Arrays.copyOf(bytes,bytes.length);
+        Log.d(TAG, String.valueOf(ret));
+//        byte [] buffer = new byte[bytes.length];
+//
+//        buffer = Arrays.copyOf(bytes, bytes.length);
+////        buffer = Arrays.copyOf(bytes, bytes.length);
+////
+//        try {
+//            stream.write(bytes,0,bytes.length);
+//        } catch (IOException e) {
+//            e.printStackTrace();
+//        }
 //        short[] mbuffer = Arrays.copyOf(bytes,bytes.length);
-//        buffer = new byte[bytes.length];
-        for(int i=0;i<bytes.length;i++){
-            buffer[i] = bytes[i];
-//            mbuffer[i] = (short) bytes[i];
+        short[] mbuffer = new short[bytes.length];
+
+
+//        while (System.currentTimeMillis() - streamstart <= 2000) {
+//            for (int i = 0; i < bytes.length; i++) {
+//                buffer[i] = bytes[i];
+////            mbuffer[i] = (short) bytes[i];
+//                try {
+//                    stream.write(buffer, 0, buffer.length);
+////                stream.writeShort(mbuffer[i]);
+//                } catch (IOException e) {
+//                    e.printStackTrace();
+//                }
+////
+//            }
+//        }
+
+        for (int i = 0; i < ret ; i++) {
             try {
-//                stream.writeShort(mbuffer[i]);
-                stream.write(buffer[i]);
+//                buffer[i] = bytes[i];
+//                stream.writeByte(buffer[i]);
+                stream.writeByte(bytes[i]);
+//
             } catch (IOException e) {
                 e.printStackTrace();
             }
+        }
 
+
+        if (System.currentTimeMillis() - streamstart > 1500) {
+            try {
+                saveRecording(rawfile);
+                stream.flush();
+                stream.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            now = new Date();
+            rawfile = getFile(filepath + formatter.format(now), "raw");
+
+            Log.d(TAG, "stream create and rawfile path: " + rawfile.getAbsolutePath());
+            try {
+                stream = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(rawfile)));
+            } catch (FileNotFoundException e) {
+                e.printStackTrace();
+            }
+
+            streamstart = System.currentTimeMillis();
         }
 
 
         return (int) ret;
     }
 
-    final Handler handler = new Handler();
 
     public void record() throws IOException {
+//        this.filename = filename;
         now = new Date();
-        rawfile = getFile(fileDir + formatter.format(now), "raw");
+        rawfile = getFile(filepath + formatter.format(now), "raw");
         stream = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(rawfile)));
-        Log.d("tmp", "tmp");
-
         handler.postDelayed(new Runnable() {
             @Override
             public void run() {
                 try {
-                    Log.d("tmp", "tmp2");
-                    Log.d("tmp", rawfile.getAbsolutePath());
-                    stream.flush();
+                    Log.d("rawfile path ", rawfile.getAbsolutePath());
+
                     saveRecording(rawfile);
+                    stream.flush();
                     stream.close();
+                    Log.d(TAG, "stream close");
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
             }
-        }, 2000);
+        }, 5000);
     }
 
     @Override
@@ -114,46 +163,57 @@ public class MicrophoneStream extends PullAudioInputStreamCallback {
         this.recorder = null;
     }
 
-    public interface ResponseListener{
+    public interface ResponseListener {
         void onComplete(boolean flag);
+
     }
+
     public ResponseListener audioListener;
 
-    public void setAudioListener(ResponseListener responseListener){
+    public void setAudioListener(ResponseListener responseListener) {
         audioListener = responseListener;
     }
-    private void initMic() {
 
+    private void initMic() {
+        filepath = MainActivity.fileDir + "/";
+
+        rawfile = getFile(filepath + formatter.format(now), "raw");
+        Log.d(TAG, "initial rawfile " + rawfile.getAbsolutePath());
+        try {
+            stream = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(rawfile)));
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
         this.bufferSizeInBytes = AudioRecord.getMinBufferSize(SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT) * 20;
         Log.d(TAG, "initMic");
         Log.d(TAG, String.valueOf(this.bufferSizeInBytes));
         mbuffer = new short[bufferSizeInBytes];
-        buffer = new byte[bufferSizeInBytes];
+//        buffer = new byte[bufferSizeInBytes];
         this.recorder = new AudioRecord(MediaRecorder.AudioSource.VOICE_RECOGNITION, 16000, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, this.bufferSizeInBytes);
         this.recorder.startRecording();
 
 
     }
 
-    public void StartRecording(final String currTime) throws IOException {
+    public void StartRecording() throws IOException {
 //        this.currTime = currTime;
-        Log.d(TAG, "StartRecording: buffer length  "+buffer.length);
+//        Log.d(TAG, "StartRecording: buffer length  " + buffer.length);
 
-        Log.d(TAG, currTime);
-        rawfile = getFile(fileDir + formatter.format(now), "raw");
+//        Log.d(TAG, currTime);
+        rawfile = getFile(this.filepath + formatter.format(now), "raw");
 
         long audiostarttime = System.currentTimeMillis();
-        byte[] bBuffer = new byte[this.bufferSizeInBytes];
-        short[] mBuffer = new short[this.bufferSizeInBytes];
+//        byte[] bBuffer = new byte[this.bufferSizeInBytes];
+//        short[] mBuffer = new short[this.bufferSizeInBytes];
 
-        DataOutputStream stream = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(rawfile)));
+        stream = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(rawfile)));
 
         while (System.currentTimeMillis() - audiostarttime < 1000) {
 //
-            int readSize = this.recorder.read(mBuffer, 0, mBuffer.length);
-            Log.d(TAG,"readSize "+readSize);
+            int readSize = this.recorder.read(mbuffer, 0, mbuffer.length);
+//            Log.d(TAG,"readSize "+readSize);
             for (int i = 0; i < readSize; i++) {
-                stream.writeShort(mBuffer[i]);
+                stream.writeShort(mbuffer[i]);
             }
 //            int readSize = this.read(buffer);
 //            for(int i=0;i<readSize;i++){
@@ -170,27 +230,25 @@ public class MicrophoneStream extends PullAudioInputStreamCallback {
     }
 
     public void saveRecording(File rawfile) {
-        File wavfile = getFile(fileDir + formatter.format(now), "wav");
-        Log.d(TAG,wavfile.getAbsolutePath());
+        File wavfile = getFile(filepath + formatter.format(now), "wav");
+        Log.d(TAG, wavfile.getAbsolutePath());
         if (rawfile != null) {
             try {
                 rawToWave(rawfile, wavfile);
                 Log.d(TAG, "save Recording");
             } catch (IOException e) {
                 e.printStackTrace();
-            }finally {
-                if(audioListener!=null){
+            } finally {
+                if (audioListener != null) {
                     audioListener.onComplete(true);
-                    Log.d(TAG, "save Recording2");
-
                 }
             }
         }
     }
 
     public void stopRecording() {
-        now = new Date();
-        File wavfile = getFile(fileDir + formatter.format(now), "wav");
+//        now = new Date();
+        File wavfile = getFile(this.filepath, "wav");
 
         if (rawfile != null) {
             try {
@@ -248,8 +306,6 @@ public class MicrophoneStream extends PullAudioInputStreamCallback {
             if (output != null) {
                 output.close();
                 rawFile.delete();
-                Log.d(TAG, "save Recording wav");
-
             }
         }
 
@@ -274,6 +330,6 @@ public class MicrophoneStream extends PullAudioInputStreamCallback {
     }
 
     private File getFile(final String filepath, final String suffix) {
-        return new File(filepath +"_read_buffer"+ "." + suffix);
+        return new File(filepath + "." + suffix);
     }
 }
