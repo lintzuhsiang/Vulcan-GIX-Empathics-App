@@ -1,4 +1,4 @@
-# Vulcan_Vuzix_Andoird_App
+# Vulcan_GIX_Empathics_App
 
 ## Smart glasses Android App Environment Setting
 
